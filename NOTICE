@@ -1,0 +1,34 @@
+Free My Android
+https://github.com/manishb27/freemyandroid
+
+Licensed under the MIT License. See LICENSE.
+
+Third-party attributions
+------------------------
+
+The idea, the shape of the project and parts of the approach to talking to a
+device over ADB are adapted from:
+
+  Free My TV
+  https://github.com/simbasjungles/free-my-tv
+  MIT License, Copyright (c) 2026 Free My TV contributors
+
+The curated package lists were written for this project, informed by the
+public work of:
+
+  Universal Android Debloater Next Generation
+  https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation
+  GPL-3.0 — consulted, not copied
+
+  Canta
+  https://github.com/samolego/Canta
+  LGPL-3.0 — consulted, not copied
+
+Apps offered by the sideload catalogue are not distributed with this
+software. They are downloaded at install time from the official F-Droid
+repository or from each project's own GitHub releases, and each remains under
+its own licence.
+
+The Android platform tools (adb) are downloaded from Google and are subject to
+the Android Software Development Kit Licence Agreement. They are not
+distributed with this software.

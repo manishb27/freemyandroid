@@ -207,13 +207,14 @@ exactly when Undo matters most.
 ## Checks before you commit
 
 ```sh
-python3 -m compileall -q fma freemyandroid
+./tools/check.sh                           # everything CI runs. Run this.
 ./freemyandroid plan fast standard         # read-only, safe on any phone
 ```
 
-CI (`.github/workflows/check.yml`) validates the data files, asserts the
-guards refuse protected packages, and asserts the denylist intensities are
-properly nested. It has caught real bugs; run it mentally before pushing.
+`tools/check.sh` is exactly what CI runs — the workflow just calls it. Do not
+reproduce a subset of it by hand: version 1.0.0 shipped with red CI because
+that is precisely what happened, and the check that got skipped was the one
+that found a real bug.
 
 ## Where things live
 

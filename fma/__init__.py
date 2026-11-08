@@ -10,7 +10,7 @@ Python 3.10+ and the standard library. `adb` is the only external binary, and
 `fma.platform_tools` will fetch that too.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __license__ = "MIT"
 __url__ = "https://github.com/manishb27/freemyandroid"
 

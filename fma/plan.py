@@ -159,8 +159,8 @@ def apply(d: adb.Device, a: Action) -> Action:
                 # system consults.
                 try:
                     d.set_role("home", component.split("/", 1)[0])
-                except AdbError:
-                    pass
+                except adb.AdbError:
+                    pass        # older devices have no `cmd role`; that is fine
                 a.undo = ({"kind": "home", "target": before}
                           if before and before != component else {})
             return a

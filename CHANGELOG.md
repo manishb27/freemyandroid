@@ -4,6 +4,27 @@ Notable changes. Versions follow [semver](https://semver.org): the package
 lists and the JSON data formats are part of the public surface, so a breaking
 change to those is a major bump.
 
+## 1.0.1 — 2026-11-08
+
+A same-day fix release, because 1.0.0 shipped with failing CI.
+
+- **Fixed a real bug** the CI caught and the release did not:
+  `fma/plan.py` used `except AdbError` where the module is imported as `adb`,
+  so setting a home screen on a device without `cmd role` would have raised
+  `NameError` instead of being ignored.
+- **`tools/check.sh`** — every check, in one command, run identically on a
+  laptop and in CI. 1.0.0 was pushed after running *some* of the checks by
+  hand, and the one that was skipped is the one that found the bug above.
+  The workflow now just calls this script, so there is nothing to skip.
+- Added a journal round-trip check covering all ten action kinds, and
+  `com.samsung.android.networkstack` to the guard assertions.
+- CI matrix fixed: Python 3.10 is pinned to `ubuntu-22.04`, because newer
+  runner images no longer carry it and `setup-python` failed outright.
+  `fail-fast: false` so one version failing no longer hides the other.
+- `__pycache__` removed from the repository and added to `.gitignore`.
+- `LICENSE` is now the unmodified MIT text so GitHub detects it; the
+  attribution that used to sit inside it has moved to `NOTICE`.
+
 ## 1.0.0 — 2026-11-08
 
 First release. Verified against a Samsung Galaxy M21 (Android 12, API 31) and

@@ -3,15 +3,24 @@ name: check
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      # Without this, one version failing cancels the other and hides half
+      # the information.
+      fail-fast: false
       matrix:
-        # 3.10 is the floor the entry point enforces; 3.13 catches deprecations.
-        python: ["3.10", "3.13"]
+        # 3.10 is the floor the entry point enforces; 3.13 catches
+        # deprecations. 3.10 is pinned to 22.04 because newer runner images
+        # no longer carry it and setup-python fails outright.
+        include:
+          - { python: "3.10", os: ubuntu-22.04 }
+          - { python: "3.13", os: ubuntu-latest }
+
     steps:
       - uses: actions/checkout@v4
 
@@ -19,199 +28,9 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - name: No third-party dependencies
-        run: |
-          # The whole project must import with nothing installed. If someone
-          # adds a dependency, this is where it gets caught.
-          test ! -f requirements.txt || (echo "requirements.txt appeared" && exit 1)
-          test ! -f pyproject.toml   || (echo "pyproject.toml appeared" && exit 1)
-          pip list --format=freeze | grep -vE '^(pip|setuptools|wheel)' \
-            && echo "note: the runner has extra packages; imports below must not use them" || true
-
-      - name: Compile everything
-        run: python -m compileall -q fma freemyandroid
-
-      - name: Import every module
-        run: |
-          python - <<'PY'
-          import importlib, pathlib, sys
-          sys.path.insert(0, ".")
-          for p in sorted(pathlib.Path("fma").glob("*.py")):
-              if p.stem == "__init__":
-                  continue
-              importlib.import_module(f"fma.{p.stem}")
-              print("imported", p.stem)
-          PY
-
-      - name: Validate the data files
-        run: |
-          python - <<'PY'
-          import json, pathlib, sys
-          sys.path.insert(0, ".")
-          from fma import adb
-
-          RISKS = {"safe", "caution", "risky"}
-          problems = []
-
-          seen = {}
-          for p in sorted(pathlib.Path("data/packages").glob("*.json")):
-              blob = json.loads(p.read_text())
-              for key in ("id", "name", "applies_to", "packages"):
-                  if key not in blob:
-                      problems.append(f"{p.name}: missing {key!r}")
-              for entry in blob.get("packages", []):
-                  pid = entry.get("id", "")
-                  if not adb.PKG_RE.match(pid):
-                      problems.append(f"{p.name}: {pid!r} is not a package name")
-                  if entry.get("risk") not in RISKS:
-                      problems.append(f"{p.name}: {pid} has risk {entry.get('risk')!r}")
-                  if not entry.get("tags"):
-                      problems.append(f"{p.name}: {pid} has no tags")
-                  if not entry.get("label"):
-                      problems.append(f"{p.name}: {pid} has no label")
-                  # A risky entry with no note is how someone's phone breaks.
-                  if entry.get("risk") in ("caution", "risky") and not entry.get("note"):
-                      problems.append(f"{p.name}: {pid} is {entry['risk']} with no note")
-                  for vendor in blob["applies_to"]:
-                      if (vendor, pid) in seen:
-                          problems.append(f"{pid} duplicated for {vendor} "
-                                          f"in {p.name} and {seen[(vendor, pid)]}")
-                      seen[(vendor, pid)] = p.name
-
-          prot = json.loads(pathlib.Path("data/protected.json").read_text())
-          for pid in prot["never_disable"]:
-              # "android" is the framework package and genuinely has no dot,
-              # so it fails the regex that every other package must pass.
-              if pid != "android" and not adb.PKG_RE.match(pid):
-                  problems.append(f"protected.json: {pid!r} is not a package name")
-
-          roles = json.loads(pathlib.Path("data/roles.json").read_text())
-          for role in prot["roles_that_need_a_replacement_first"]:
-              if role not in roles["roles"]:
-                  problems.append(f"protected.json guards role {role!r} "
-                                  "which roles.json does not define")
-          for role in roles["elder_keep_roles"]:
-              if role not in roles["roles"]:
-                  problems.append(f"elder_keep_roles has unknown role {role!r}")
-
-          apps = json.loads(pathlib.Path("data/apps.json").read_text())
-          ids = set()
-          for a in apps["apps"]:
-              if a["id"] in ids:
-                  problems.append(f"apps.json: duplicate id {a['id']!r}")
-              ids.add(a["id"])
-              if a["source"] not in ("fdroid", "github"):
-                  problems.append(f"apps.json: {a['id']} has source {a['source']!r}; "
-                                  "only fdroid and github are allowed")
-              if a["source"] == "github" and not a.get("repo"):
-                  problems.append(f"apps.json: {a['id']} is github with no repo")
-              if a.get("fills_role") and a["fills_role"] not in roles["roles"]:
-                  problems.append(f"apps.json: {a['id']} fills unknown role "
-                                  f"{a['fills_role']!r}")
-
-          profiles_dir = pathlib.Path("data/profiles")
-          for p in sorted(profiles_dir.glob("*.json")):
-              blob = json.loads(p.read_text())
-              for tier in ("standard", "extreme", "ultra"):
-                  if tier not in blob["intensity"]:
-                      problems.append(f"{p.name}: no {tier} intensity")
-              if blob.get("strategy") == "denylist":
-                  # standard must be a subset of extreme, extreme of ultra
-                  tiers = [set(blob["intensity"][t].get("tags", []))
-                           for t in ("standard", "extreme", "ultra")]
-                  if not (tiers[0] <= tiers[1] <= tiers[2]):
-                      problems.append(f"{p.name}: intensity tags are not nested; "
-                                      "standard must be a subset of extreme, "
-                                      "and extreme of ultra")
-
-          for line in problems:
-              print("FAIL", line)
-          print(f"\n{len(seen)} package entries, {len(ids)} apps checked")
-          sys.exit(1 if problems else 0)
-          PY
-
-      - name: Profiles build against a synthetic device
-        run: |
-          python - <<'PY'
-          import sys
-          sys.path.insert(0, ".")
-          from fma import device, profiles, plan
-
-          # No phone in CI, so drive the planner with a hand-made Profile and
-          # a Context that has had its live lookups filled in by hand.
-          prof = device.Profile(
-              serial="ci", manufacturer="samsung", brand="samsung",
-              model="SM-CI", android="12", sdk=31, vendor_key="samsung",
-          )
-          pkgs = profiles.load_packages()
-          prof.installed = {e.id for e in pkgs["*"] + pkgs["samsung"]}
-          prof.installed |= {"com.sec.android.app.launcher", "com.android.systemui"}
-
-          ctx = profiles.build_context(prof, quick=True)
-          ctx.current_launcher = "com.sec.android.app.launcher"
-          ctx.launchers = ["com.sec.android.app.launcher"]
-          ctx.role_holders = {"dialer": "com.samsung.android.dialer",
-                              "sms": "com.samsung.android.messaging"}
-          ctx.launchable = set(prof.installed)
-
-          # guard() must refuse all of these.
-          must_refuse = ["android", "com.android.systemui", "com.google.android.gms",
-                         "com.qualcomm.qti.whatever", "com.sec.android.app.launcher",
-                         "com.samsung.android.dialer", "com.samsung.android.messaging",
-                         "com.google.android.marvin.talkback"]
-          bad = [p for p in must_refuse if not ctx.guard(p)]
-          if bad:
-              print("FAIL guard allowed:", bad)
-              sys.exit(1)
-          print("guards refuse all", len(must_refuse), "protected packages")
-
-          # Every profile at every intensity must build, and never plan to
-          # disable something guard() refuses.
-          for spec in profiles.load_profiles():
-              prev = None
-              for tier in ("standard", "extreme", "ultra"):
-                  pl = profiles.build(ctx, spec["id"], tier)
-                  targets = {a.target for a in pl.actions if a.kind == "disable"}
-                  leaked = {t for t in targets if ctx.guard(t)}
-                  if leaked:
-                      print(f"FAIL {spec['id']}/{tier} plans guarded: {leaked}")
-                      sys.exit(1)
-                  if spec.get("strategy") == "denylist" and prev is not None:
-                      if not prev <= targets:
-                          print(f"FAIL {spec['id']}/{tier} is not a superset "
-                                f"of the previous tier; dropped {prev - targets}")
-                          sys.exit(1)
-                  prev = targets
-                  print(f"  {spec['id']}/{tier}: {len(pl.actions)} actions")
-          print("all profiles build and respect the guards")
-          PY
-
-      - name: Undefined names
-        run: |
-          python - <<'PY'
-          import ast, builtins, pathlib, sys
-          problems = 0
-          for p in sorted(pathlib.Path("fma").glob("*.py")):
-              tree = ast.parse(p.read_text(), str(p))
-              defined = set(dir(builtins)) | {"__file__", "__name__", "__doc__"}
-              for n in ast.walk(tree):
-                  if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                      defined.add(n.name)
-                  elif isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
-                      defined.add(n.id)
-                  elif isinstance(n, (ast.Import, ast.ImportFrom)):
-                      for a in n.names:
-                          defined.add((a.asname or a.name).split(".")[0])
-                  elif isinstance(n, ast.arg):
-                      defined.add(n.arg)
-                  elif isinstance(n, ast.ExceptHandler) and n.name:
-                      defined.add(n.name)
-                  elif isinstance(n, (ast.Global, ast.Nonlocal)):
-                      defined.update(n.names)
-              for n in ast.walk(tree):
-                  if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) \
-                          and n.id not in defined:
-                      print(f"FAIL {p}:{n.lineno}: undefined name {n.id!r}")
-                      problems += 1
-          sys.exit(1 if problems else 0)
-          PY
+      # One script, run identically here and on a laptop. 1.0.0 shipped with
+      # red CI because the checks lived here and were only partly reproduced
+      # by hand before pushing; the one that was skipped found a real bug.
+      # Keeping the logic in tools/check.sh means there is nothing to skip.
+      - name: ./tools/check.sh
+        run: ./tools/check.sh

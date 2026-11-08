@@ -8,7 +8,7 @@ Plug a phone in, or find it over Wi-Fi. Pick *Fast*, *Elder* or *Developer*.
 Pick how far to go. Read exactly what will change, then apply it.<br>
 No root. Nothing uninstalled. Nothing installed on the phone unless you ask.
 
-**v1.0.0** · Python 3.10+ · no dependencies · MIT
+**v1.0.1** · Python 3.10+ · no dependencies · MIT
 
 [Changelog](CHANGELOG.md) · [For AI assistants](AGENTS.md) · [adb setup](docs/ADB.md) · [Phone as a server](docs/SERVER.md) · [Roadmap](docs/ROADMAP.md)
 
