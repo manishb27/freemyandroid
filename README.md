@@ -8,7 +8,9 @@ Plug a phone in, or find it over Wi-Fi. Pick *Fast*, *Elder* or *Developer*.
 Pick how far to go. Read exactly what will change, then apply it.<br>
 No root. Nothing uninstalled. Nothing installed on the phone unless you ask.
 
-Python 3.10+ · no dependencies · MIT
+**v1.0.0** · Python 3.10+ · no dependencies · MIT
+
+[Changelog](CHANGELOG.md) · [For AI assistants](AGENTS.md) · [adb setup](docs/ADB.md) · [Phone as a server](docs/SERVER.md) · [Roadmap](docs/ROADMAP.md)
 
 </div>
 
@@ -254,15 +256,28 @@ package name and no note are the ones that go wrong.
 
 ## Status
 
-Early. The engine, the guards, the journal, discovery, the battery report, the
-catalogue and the interface all work and have been exercised against a real
-device. Not yet done: the web panel for the server profile (designed in
-`docs/SERVER.md`, not built), Vivo and Motorola package lists, and a test
-suite worth the name.
+**1.0.0.** The engine, the guards, the journal, discovery, the battery report,
+the catalogue, default-app switching and both interfaces work and have been
+exercised end to end against real hardware.
 
-Tested against: OnePlus Y Series (Android 11, API 30). If you run it on
-something, a line in an issue saying what happened is genuinely useful —
-especially if a guard fired when it should not have, or did not when it should.
+Tested on a **Samsung Galaxy M21** (Android 12, API 31) — 70 changes applied,
+0 failures, launcher swapped and ~110 MB of memory freed — and a **OnePlus
+Y Series** Android TV (Android 11, API 30).
+
+Not done yet, in order of how much it matters:
+
+- **No test suite.** Everything above was verified by hand. This is the
+  biggest gap in the repo.
+- The web panel for running services on the phone is designed in
+  `docs/SERVER.md`, not built.
+- No vivo, Motorola or Transsion package lists.
+- Windows is untested; `curses` is not in its standard library, so the TUI
+  needs WSL there. The web interface works anywhere.
+
+If you run it on something, a line in an issue saying what happened is
+genuinely useful — especially if a guard fired when it should not have, or
+did not when it should. `./freemyandroid --version` and the relevant journal
+file are the two things worth attaching.
 
 ## Credit
 

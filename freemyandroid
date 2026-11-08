@@ -17,6 +17,7 @@ so the same thing can be scripted or run over SSH where curses is awkward.
     ./freemyandroid adb where            show which adb is being used
     ./freemyandroid adb bundle <dir>     adb for Linux, macOS and Windows
     ./freemyandroid undo [serial]        list recorded runs
+    ./freemyandroid --version            version, python and adb in use
 
 `plan` only ever prints. Nothing on this command line changes a phone; that
 needs the interface, where it can be confirmed.
@@ -258,6 +259,17 @@ def main() -> int:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
     argv = sys.argv[1:]
+    if argv and argv[0] in ("-V", "--version", "version"):
+        from fma import __version__, __url__
+        print(f"free-my-android {__version__}")
+        print(f"python {sys.version.split()[0]} on {sys.platform}")
+        try:
+            from fma import adb
+            print(f"adb {adb.find_adb()}")
+        except Exception as e:                  # noqa: BLE001
+            print(f"adb not found: {e}".splitlines()[0])
+        print(__url__)
+        return 0
     if argv and argv[0] in ("-h", "--help", "help"):
         print(__doc__.strip())
         return 0

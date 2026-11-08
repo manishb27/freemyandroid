@@ -156,8 +156,10 @@ class Api:
 
     def state(self) -> dict:
         s = self.s
+        from . import __version__
         with s.lock:
             out: dict = {
+                "version": __version__,
                 "mode": s.mode,
                 "modes": MODES,
                 "busy": s.busy,

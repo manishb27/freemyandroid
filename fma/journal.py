@@ -123,8 +123,10 @@ def load(serial: str) -> list[Run]:
 
 def save(serial: str, runs: list[Run], device: dict[str, Any] | None = None) -> str:
     p = path_for(serial)
+    from . import __version__
     blob = {
         "schema": SCHEMA,
+        "written_by": f"free-my-android {__version__}",
         "serial": serial,
         "device": device or (runs[-1].device if runs else {}),
         "runs": [r.to_json() for r in runs],

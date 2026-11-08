@@ -247,6 +247,7 @@ async function refresh() {
     $("deviceline").textContent = "Lost contact with the server. Is it still running?";
     return;
   }
+  if (state.version) $("version").textContent = "Free My Android " + state.version + ". ";
   const d = state.device;
   $("deviceline").textContent = d
     ? `${d.name} · ${d.android} · ${d.installed} packages, ${d.disabled} already off` +
