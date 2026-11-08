@@ -45,6 +45,45 @@ for p in sorted(pathlib.Path("fma").glob("*.py")):
         importlib.import_module(f"fma.{p.stem}")
 EOF
 
+step "python 3.10 syntax compatibility"
+$PY - <<'EOF' && ok "no 3.12-only syntax" || bad "syntax that needs python 3.12"
+# A backslash inside an f-string *expression* is legal from 3.12 (PEP 701)
+# and a SyntaxError before it. A 3.12 interpreter compiles it happily, so
+# running the checks on a new Python cannot see the problem — which is how
+# 1.0.1 shipped a file that would not even parse on 3.10.
+#
+# ast.parse(feature_version=(3, 10)) does not help: the change is in the
+# tokeniser, not the grammar. tokenize does help, because from 3.12 the
+# pieces of an f-string arrive as separate tokens, so a string literal
+# holding a backslash *inside* an f-string is visible.
+import io, pathlib, sys, tokenize
+
+if sys.version_info < (3, 12):
+    print("   running on <3.12; the compile step already catches this")
+    sys.exit(0)
+
+problems = 0
+for p in sorted(pathlib.Path("fma").glob("*.py")) + [pathlib.Path("freemyandroid")]:
+    src = p.read_text()
+    depth = 0
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            name = tokenize.tok_name.get(tok.type, "")
+            if name == "FSTRING_START":
+                depth += 1
+            elif name == "FSTRING_END":
+                depth = max(0, depth - 1)
+            elif depth and name == "STRING" and "\\" in tok.string:
+                print(f"   {p}:{tok.start[0]}: backslash in an f-string "
+                      f"expression ({tok.string}) — SyntaxError before 3.12. "
+                      f"Move it to a constant or a local.")
+                problems += 1
+    except (tokenize.TokenError, IndentationError) as e:
+        print(f"   {p}: could not tokenise: {e}")
+        problems += 1
+sys.exit(1 if problems else 0)
+EOF
+
 step "undefined names"
 $PY - <<'EOF' && ok "no undefined names" || bad "undefined names"
 import ast, builtins, pathlib, sys

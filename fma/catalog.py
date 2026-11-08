@@ -42,6 +42,11 @@ UA = "freemyandroid/0.1 (+https://github.com/manishb27/freemyandroid)"
 
 TIMEOUT = 60
 
+# The asset pattern used when an entry does not name one. Kept as a module
+# constant rather than inline, because a backslash cannot appear inside an
+# f-string expression before Python 3.12 and this project supports 3.10.
+DEFAULT_ASSET = r"\.apk$"
+
 
 class CatalogError(RuntimeError):
     pass
@@ -185,7 +190,7 @@ def _resolve_github(app: App, abi: str = "") -> tuple[str, str]:
         releases = [json.loads(_get(f"{GITHUB_API}/{app.repo}/releases/latest",
                                     accept="application/vnd.github+json"))]
 
-    pattern = re.compile(app.asset or r"\.apk$", re.I)
+    pattern = re.compile(app.asset or DEFAULT_ASSET, re.I)
     refuse = re.compile(app.exclude, re.I) if app.exclude else None
     tried: list[str] = []
 
@@ -204,10 +209,14 @@ def _resolve_github(app: App, abi: str = "") -> tuple[str, str]:
             continue        # wrong architecture; try an older release
         return best["browser_download_url"], tag
 
+    # Built outside the f-strings: a backslash inside an f-string expression
+    # is a syntax error before Python 3.12, and this project supports 3.10.
+    wanted = app.asset or DEFAULT_ASSET
+    excluding = f" (excluding /{app.exclude}/)" if app.exclude else ""
+    looked_in = ", ".join(tried[:8]) or "no releases"
     raise CatalogError(
-        f"{app.id}: no asset matched /{app.asset or r'\.apk$'}/"
-        + (f" (excluding /{app.exclude}/)" if app.exclude else "")
-        + f" for {abi or 'this phone'} in: {', '.join(tried[:8]) or 'no releases'}")
+        f"{app.id}: no asset matched /{wanted}/{excluding} "
+        f"for {abi or 'this phone'} in: {looked_in}")
 
 
 # --- downloading ------------------------------------------------------------

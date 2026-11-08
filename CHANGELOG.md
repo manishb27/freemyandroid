@@ -4,6 +4,26 @@ Notable changes. Versions follow [semver](https://semver.org): the package
 lists and the JSON data formats are part of the public surface, so a breaking
 change to those is a major bump.
 
+## 1.0.2 — 2026-11-08
+
+Fixes a file that would not parse at all on Python 3.10, which is the floor
+this project claims to support.
+
+- `fma/catalog.py` had `r'\.apk$'` inside an f-string expression. PEP 701
+  made that legal in 3.12; before 3.12 it is a `SyntaxError`. Development
+  happened on 3.12, so it compiled locally and the module simply could not be
+  imported on 3.10. Moved to a `DEFAULT_ASSET` constant.
+- **`tools/check.sh` now catches this class of bug** on a new interpreter.
+  `ast.parse(feature_version=(3, 10))` does not help, because the change is
+  in the tokeniser rather than the grammar; `tokenize` does, because from
+  3.12 the pieces of an f-string arrive as separate tokens, so a string
+  literal holding a backslash inside an f-string is visible. Verified by
+  reintroducing the bug and watching the check fail.
+
+Worth recording that the 3.10 matrix job earned its place immediately: it was
+added in 1.0.1 to fix a `setup-python` failure, and the first time it actually
+ran it found this.
+
 ## 1.0.1 — 2026-11-08
 
 A same-day fix release, because 1.0.0 shipped with failing CI.
