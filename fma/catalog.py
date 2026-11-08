@@ -61,6 +61,9 @@ class App:
     sha256: str = ""
     fills_role: str = ""
     config: str = ""
+    ram_kb: int = 0
+    prerelease: bool = False    # the project only tags betas (see Lawnchair)
+    exclude: str = ""           # regex of asset names to refuse
     recommend: list[str] = field(default_factory=list)
 
     @property
@@ -162,26 +165,49 @@ def _asset_rank(name: str, abi: str) -> tuple[int, int]:
 
 
 def _resolve_github(app: App, abi: str = "") -> tuple[str, str]:
+    """Newest release with a usable APK.
+
+    `releases/latest` is GitHub's idea of latest, which excludes pre-releases.
+    For a project that only ever tags betas that is actively harmful: asking
+    Lawnchair for its latest release hands back version 1.2 from 2020, while
+    the builds people actually run are all marked pre-release. Those projects
+    set `prerelease: true` and we walk the release list ourselves.
+    """
     if not app.repo:
         raise CatalogError(f"{app.id}: github source with no repo")
-    blob = json.loads(_get(f"{GITHUB_API}/{app.repo}/releases/latest",
-                           accept="application/vnd.github+json"))
-    tag = blob.get("tag_name", "?")
+
+    if app.prerelease:
+        blobs = json.loads(_get(f"{GITHUB_API}/{app.repo}/releases?per_page=30",
+                                accept="application/vnd.github+json"))
+        releases = [b for b in blobs if not b.get("draft")]
+        releases.sort(key=lambda b: b.get("published_at") or "", reverse=True)
+    else:
+        releases = [json.loads(_get(f"{GITHUB_API}/{app.repo}/releases/latest",
+                                    accept="application/vnd.github+json"))]
+
     pattern = re.compile(app.asset or r"\.apk$", re.I)
-    assets = [a for a in blob.get("assets", [])
-              if a.get("name", "").lower().endswith(".apk")
-              and pattern.search(a.get("name", ""))]
-    if not assets:
-        names = ", ".join(a.get("name", "?") for a in blob.get("assets", [])) or "none"
-        raise CatalogError(
-            f"{app.id}: no release asset matched /{app.asset}/ in {tag}. Assets: {names}")
-    assets.sort(key=lambda a: _asset_rank(a.get("name", ""), abi))
-    best = assets[0]
-    if _asset_rank(best.get("name", ""), abi)[0] == 3:
-        raise CatalogError(
-            f"{app.id}: the only assets in {tag} are for another architecture "
-            f"than {abi or 'this phone'}: {best.get('name')}")
-    return best["browser_download_url"], tag
+    refuse = re.compile(app.exclude, re.I) if app.exclude else None
+    tried: list[str] = []
+
+    for blob in releases:
+        tag = blob.get("tag_name", "?")
+        tried.append(tag)
+        assets = [a for a in blob.get("assets", [])
+                  if a.get("name", "").lower().endswith(".apk")
+                  and pattern.search(a.get("name", ""))
+                  and not (refuse and refuse.search(a.get("name", "")))]
+        if not assets:
+            continue
+        assets.sort(key=lambda a: _asset_rank(a.get("name", ""), abi))
+        best = assets[0]
+        if _asset_rank(best.get("name", ""), abi)[0] == 3:
+            continue        # wrong architecture; try an older release
+        return best["browser_download_url"], tag
+
+    raise CatalogError(
+        f"{app.id}: no asset matched /{app.asset or r'\.apk$'}/"
+        + (f" (excluding /{app.exclude}/)" if app.exclude else "")
+        + f" for {abi or 'this phone'} in: {', '.join(tried[:8]) or 'no releases'}")
 
 
 # --- downloading ------------------------------------------------------------

@@ -292,7 +292,10 @@ class Device:
 
     # -- installing
 
-    def install(self, apk_path: str, timeout: float = 300.0) -> Result:
+    def install(self, apk_path: str, timeout: float = 900.0) -> Result:
+        # 900s, not 300. A 17 MB APK on a mid-range phone with slow flash can
+        # genuinely take several minutes to verify and optimise, and a timeout
+        # here looks exactly like a hang to whoever is watching.
         if not os.path.isfile(apk_path):
             raise AdbError(f"no such APK: {apk_path}")
         # -r replace, -g grant the runtime permissions it declares (launchers

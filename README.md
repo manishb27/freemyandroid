@@ -38,7 +38,8 @@ risk ceiling:
 ```sh
 git clone https://github.com/manishb27/freemyandroid
 cd freemyandroid
-./freemyandroid
+./freemyandroid          # terminal interface
+./freemyandroid web      # or do it in a browser
 ```
 
 That is the whole install. It is Python 3.10+ and the standard library — no
@@ -71,6 +72,36 @@ ship `adb` with mDNS compiled out and that command then silently finds
 nothing. It speaks DNS-SD directly, and falls back to a unicast sweep of your
 subnet when the access point drops multicast between wireless clients — which
 a lot of home routers do.
+
+## The web interface
+
+```sh
+./freemyandroid web
+#   http://127.0.0.1:8777/?t=<token>
+```
+
+The terminal interface assumes whoever is driving it is also whoever decides.
+That breaks in the two situations this actually gets used in: an assistant
+doing the work while the phone's owner approves it, and someone debloating a
+phone for a relative who wants to see what is being taken away.
+
+So the web page is a **decision maker and a progress view**. It lists what is
+proposed with the reason and the risk for each line, the owner ticks what they
+are comfortable with, and then watches it apply line by line. Nothing reaches
+a phone until someone clicks Apply.
+
+It asks one question the tool cannot answer for itself:
+
+- **Freshly reset phone** — nothing on it anyone would miss, so every change
+  is pre-ticked including the aggressive ones.
+- **Phone someone is using** — their photos and accounts are on it, so only
+  the changes nobody notices are pre-ticked. Anything that removes a feature
+  is left for a human to tick deliberately.
+
+Bound to `127.0.0.1` and gated on a random per-run token that is printed with
+the URL, because a page that can disable apps on a phone is not something to
+expose by accident. `--lan` will bind everything, and says so loudly on
+startup.
 
 ## Safety
 
@@ -120,8 +151,27 @@ quietly wrong.
 
 Elder mode is not much use if the person is left staring at the same OEM
 launcher, and turning off Chrome is unkind if nothing else opens a link. So
-the tool can fetch and sideload 29 open-source apps: launchers, dialers,
-keyboards, browsers, and the Termux pieces the server profile needs.
+the tool can fetch and sideload 32 open-source apps: launchers, dialers,
+keyboards, browsers, galleries, and the Termux pieces the server profile needs.
+
+Memory figures in the catalogue are **measured**, not claimed — PSS read off a
+real phone after launching each one. They are worth measuring, because the
+guesses are wrong:
+
+| Launcher | Measured PSS |
+|---|---|
+| KISS | 24 MB |
+| YAM Launcher | 20 MB |
+| Olauncher | 47 MB |
+| Neo Launcher (Nova-like) | 61 MB |
+| µLauncher | 71 MB |
+| Lawnchair 15 beta (Nova-like) | 78 MB |
+| Samsung One UI Home | 111 MB |
+| **Fossify Launcher** | **159 MB** |
+
+Fossify Launcher has a 5 MB APK and is heavier at runtime than Samsung's own
+launcher. µLauncher's APK is 4 MB and it uses three times KISS's memory.
+Replacing a stock launcher is usually a big win, but only if you check.
 
 Only two sources are allowed, and that restriction is the entire security
 model: **the official F-Droid repo**, and **a project's own GitHub releases**.

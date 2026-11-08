@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free My Android</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header>
+  <h1>Free My Android</h1>
+  <p id="deviceline" class="muted">Looking for a phone…</p>
+</header>
+
+<main>
+
+<!-- 1. the phone -->
+<section id="s-device">
+  <h2><span class="n">1</span> The phone</h2>
+  <div id="devices" class="rows"></div>
+  <div class="actions">
+    <button id="refresh" class="ghost">Look again</button>
+    <button id="scan" class="ghost">Find one over Wi&#8209;Fi</button>
+  </div>
+  <p class="muted small">
+    USB: Developer options &rarr; USB debugging, then accept the prompt on the
+    phone. Wi&#8209;Fi needs Android&nbsp;11 or newer, and the Wireless
+    debugging screen has to stay open &mdash; Android stops advertising when
+    the screen sleeps.
+  </p>
+</section>
+
+<!-- 2. how it's used -->
+<section id="s-mode" class="hidden">
+  <h2><span class="n">2</span> How is this phone used?</h2>
+  <p class="muted">This is the one thing we cannot work out for ourselves, and
+  it changes what gets ticked for you.</p>
+  <div id="modes" class="cards"></div>
+</section>
+
+<!-- 3. what to do -->
+<section id="s-what" class="hidden">
+  <h2><span class="n">3</span> What would you like to do?</h2>
+  <div id="profiles" class="cards"></div>
+  <div class="actions">
+    <button id="battery" class="ghost">What is draining the battery</button>
+    <button id="apps" class="ghost">Apps &amp; launchers</button>
+    <button id="undo" class="ghost">Undo something</button>
+  </div>
+</section>
+
+<!-- 4. review -->
+<section id="s-plan" class="hidden">
+  <h2><span class="n">4</span> Review before anything changes</h2>
+  <p id="plansummary" class="muted"></p>
+  <div class="actions tight">
+    <button id="sel-all" class="ghost small">All</button>
+    <button id="sel-none" class="ghost small">None</button>
+    <button id="sel-safe" class="ghost small">Safe only</button>
+    <span id="selcount" class="muted small"></span>
+  </div>
+  <div id="plan" class="rows checklist"></div>
+  <details id="skipped-wrap" class="hidden">
+    <summary>Left alone by the guards (<span id="skipcount">0</span>)</summary>
+    <div id="skipped" class="rows"></div>
+  </details>
+  <div class="actions">
+    <button id="apply" class="danger">Apply the ticked changes</button>
+  </div>
+  <p class="muted small">
+    Nothing is uninstalled &mdash; packages are disabled, which leaves them on
+    the phone. Every change is written to this computer and can be put back
+    from Undo.
+  </p>
+</section>
+
+<!-- app catalogue -->
+<section id="s-apps" class="hidden">
+  <h2>Apps &amp; launchers</h2>
+  <p class="muted">Downloaded from F&#8209;Droid or the project's own GitHub
+  releases over HTTPS, checksummed, then installed over ADB. No mirrors.
+  Memory figures are measured, not claimed.</p>
+  <div id="catalog" class="rows checklist"></div>
+  <div class="actions">
+    <button id="install" class="primary">Install the ticked apps</button>
+    <button id="apps-close" class="ghost">Back</button>
+  </div>
+</section>
+
+<!-- undo -->
+<section id="s-undo" class="hidden">
+  <h2>Undo</h2>
+  <p class="muted">Kept on this computer, newest first.</p>
+  <div id="journal" class="rows"></div>
+  <div class="actions"><button id="undo-close" class="ghost">Back</button></div>
+</section>
+
+<!-- progress -->
+<section id="s-progress" class="hidden">
+  <h2 id="progress-title">Working</h2>
+  <div id="steps" class="log"></div>
+</section>
+
+<p id="err" class="error hidden"></p>
+
+</main>
+
+<footer class="muted small">
+  Nothing on this page is applied to a phone until you click Apply.
+  Everything it can do, the four guards still refuse:
+  protected packages, whatever is currently your dialer, home screen, keyboard,
+  browser or payment app, a screen reader in use, and anything you turned off
+  yourself.
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

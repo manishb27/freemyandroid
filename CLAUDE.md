@@ -35,7 +35,10 @@ data/packages/*.json   the curated lists, 179 entries over 5 files
 data/profiles/*.json   fast, elder, dev — each with 3 intensities
 data/protected.json    the hard guard. 57 packages, 11 prefixes
 data/roles.json        19 roles: what a phone needs to still be a phone
-data/apps.json         29 sideloadable open-source apps
+data/apps.json         32 sideloadable open-source apps
+fma/web.py             the web interface: decisions and live progress
+fma/platform_tools.py  fetching adb itself from Google, for all 3 platforms
+web/                   index.html, app.js, style.css. No framework, no build
 ```
 
 ## The four guards

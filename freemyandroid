@@ -4,7 +4,8 @@
 Run it with no arguments for the full-screen interface. The subcommands exist
 so the same thing can be scripted or run over SSH where curses is awkward.
 
-    ./freemyandroid                      the interface
+    ./freemyandroid                      the terminal interface
+    ./freemyandroid web                  the web interface, in a browser
     ./freemyandroid devices              what is connected
     ./freemyandroid scan                 find phones on this network
     ./freemyandroid info [serial]        what kind of phone it is
@@ -201,6 +202,29 @@ def cmd_adb(argv: list[str]) -> int:
     return 2
 
 
+def cmd_web(argv: list[str]) -> int:
+    """Start the web interface: decisions and live progress in a browser."""
+    from fma import web
+    host, port, open_browser = "127.0.0.1", 8777, True
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--port", "-p") and i + 1 < len(argv):
+            port = int(argv[i + 1]); i += 2
+        elif a == "--bind" and i + 1 < len(argv):
+            host = argv[i + 1]; i += 2
+        elif a == "--lan":
+            # Convenience for driving it from a phone or another machine.
+            # Deliberately not the default, and it says so on startup.
+            host = "0.0.0.0"; i += 1
+        elif a in ("--no-browser", "-n"):
+            open_browser = False; i += 1
+        else:
+            sys.exit(f"freemyandroid web: unknown option {a!r}")
+    web.serve(host=host, port=port, open_browser=open_browser)
+    return 0
+
+
 def cmd_undo(argv: list[str]) -> int:
     from fma import journal
     serial = _one_device(argv)
@@ -224,6 +248,7 @@ COMMANDS = {
     "apps": cmd_apps,
     "bundle": cmd_bundle,
     "adb": cmd_adb,
+    "web": cmd_web,
     "undo": cmd_undo,
 }
 
