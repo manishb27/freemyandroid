@@ -595,6 +595,14 @@ def show_apps(sc: Screen, prof: device.Profile, ctx: profiles.Context) -> None:
         actions.append(act)
         log.append((("✓ " if act.ok else "✗ ") + a.name
                     + ("" if act.ok else f"   ({act.result})"), act.ok))
+        if act.ok and a.fills_role:
+            dflt = plan.make_default(d, a.pkg, a.fills_role, a.name)
+            if dflt is not None:
+                plan.apply(d, dflt)
+                actions.append(dflt)
+                log.append((("✓ " if dflt.ok else "✗ ") + dflt.describe()
+                            + ("" if dflt.ok else f"   ({dflt.result})"),
+                            dflt.ok))
 
     if actions:
         journal.record(prof.serial, "installed apps", {
@@ -603,9 +611,9 @@ def show_apps(sc: Screen, prof: device.Profile, ctx: profiles.Context) -> None:
     sc.message("Done", [
         f"{ok} installed." if ok else "Nothing was installed.",
         "",
-        "To make a new launcher the home screen, press Home on the phone and "
-        "pick it, or use Settings → Apps → Default apps → Home app. Android "
-        "will not let a tool over ADB make that choice for you, by design."
+        "A new launcher has been made the home screen already, and the old "
+        "one is recorded so Undo puts it back. It is now safe to turn off, "
+        "which is usually the biggest single memory saving on the phone."
         if any(c.category == "launcher" for c in picked) else "",
     ] + [line for line, good in log if not good][:6],
         bad=not ok)

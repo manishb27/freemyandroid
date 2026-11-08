@@ -78,12 +78,15 @@ actually help an elderly user and are reachable over ADB but not yet done:
 - **Display size** (`wm density`), not just font scale. Riskier — a bad value
   needs ADB to undo — so it needs its own confirmation and a known-good
   fallback.
-- **Installing and configuring a large-tile launcher.** We can install
-  Fossify Launcher but cannot set its icon size; Android gives no ADB route to
-  another app's preferences. Possibly ship a backup file and restore it.
-- Android will not let a tool over ADB set the default Home app, by design.
-  The person has to press Home and choose. The interface should say so at the
-  moment it matters rather than in a README.
+- **Configuring a large-tile launcher.** We can install Fossify Launcher and
+  make it Home, but cannot set its icon size; Android gives no ADB route into
+  another app's preferences. Possibly ship a settings backup and restore it.
+- Setting defaults *is* possible over ADB and is now done
+  (`cmd package set-home-activity`, `cmd role add-role-holder`, `ime set`).
+  Earlier versions of this file claimed Android forbids it. It does not.
+  What remains genuinely unreachable: a "default gallery", which is not a
+  role at all — apps just register for image intents, so `make_default()`
+  returns None rather than failing quietly.
 
 ## 6. The on-device interface
 

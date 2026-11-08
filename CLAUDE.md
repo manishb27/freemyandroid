@@ -78,6 +78,40 @@ hand-picks a package and confirms twice.
   `device.vendor_key()`, which normalises `ro.product.manufacturer` and
   `ro.product.brand`. `["*"]` means every phone.
 
+## Default apps: it all works over ADB
+
+Nobody should have to pick up the phone and tap through Settings. All of this
+works over plain ADB without root, and is implemented in `fma/adb.py`:
+
+```
+cmd package set-home-activity <pkg>/<Activity>    the home screen
+cmd role add-role-holder android.app.role.SMS <pkg>   sms, dialer, browser…
+ime enable <id> && ime set <id>                   the keyboard
+```
+
+Two traps, both already paid for:
+
+- `set-home-activity` needs a **full component**, not a package. Resolve it
+  with `Device.home_activity()`; guessing `.MainActivity` silently does
+  nothing.
+- Samsung ships `cmd role` with `add-role-holder` and `remove-role-holder`
+  but **without** `get-role-holders` or `list-roles`. The write side works
+  while the read side does not, so `Device.role_holders()` falls back to
+  `cmd shortcut get-default-launcher` for home and
+  `settings get secure sms_default_application` for sms, and returns `[]`
+  otherwise. When it returns `[]` the change is applied but recorded as not
+  reversible, which the note on the action says out loud.
+
+There is no "default gallery" role. `plan.make_default()` returns None for it
+rather than producing an action that fails quietly.
+
+**Role holders beat the candidate lists.** `data/roles.json` lists candidates
+in preference order, which is a guess. Where the device knows the real
+holder, `build_context()` overrides the guess — otherwise installing a new
+launcher leaves the guard still naming the *stock* launcher as "the current
+launcher", because it sits first in the list, and the one package you most
+wanted to turn off stays protected for the wrong reason.
+
 ## Adding an action kind
 
 In `fma/plan.py`: a branch in `apply()` that sets `a.undo` to the exact

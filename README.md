@@ -173,6 +173,14 @@ Fossify Launcher has a 5 MB APK and is heavier at runtime than Samsung's own
 launcher. µLauncher's APK is 4 MB and it uses three times KISS's memory.
 Replacing a stock launcher is usually a big win, but only if you check.
 
+**How these were measured, and the caveat.** Each was launched and its
+`dumpsys meminfo` total PSS read. The stock launcher was measured while it
+*was* Home; the others were not, and a launcher holding Home does more work —
+wallpaper, widgets, staying resident. Neo Launcher measured 61 MB as an app
+and 81 MB once it was actually the home screen. So treat these as a ranking
+rather than a budget, and expect roughly 20 MB more from whichever one you
+end up using.
+
 Only two sources are allowed, and that restriction is the entire security
 model: **the official F-Droid repo**, and **a project's own GitHub releases**.
 No mirrors, no APK-download sites. Those are where repackaged binaries come

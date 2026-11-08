@@ -270,6 +270,72 @@ class Device:
             raise AdbError(f"not a settings key: {key!r}")
         return self.shell(f"settings delete {ns} {key}", timeout=20)
 
+    # -- default apps, without anyone touching the phone
+    #
+    # `cmd role add-role-holder` is the general mechanism on Android 10+ and
+    # it works over ADB without root. Note that Samsung ships `cmd role` with
+    # add/remove but *without* `get-role-holders` and `list-roles`, so the
+    # write side works while the read side does not. Where a role's current
+    # holder matters for undo, there is a per-role fallback below.
+
+    ROLES = {
+        "home": "android.app.role.HOME",
+        "browser": "android.app.role.BROWSER",
+        "sms": "android.app.role.SMS",
+        "dialer": "android.app.role.DIALER",
+        "gallery": "android.app.role.PHOTO_PICKER",
+        "assistant": "android.app.role.ASSISTANT",
+    }
+
+    def role_holders(self, role: str) -> list[str]:
+        """Who holds a role now. Empty when the device will not tell us."""
+        full = self.ROLES.get(role, role)
+        if not re.match(r"^[A-Za-z][\w.]*$", full):
+            raise AdbError(f"not a role name: {role!r}")
+        r = self.shell(f"cmd role get-role-holders {full}", timeout=25)
+        if "Unknown command" in r.out or "Unknown command" in r.err:
+            # Samsung. Fall back to whatever that role happens to expose.
+            if role == "home":
+                comp = self.current_home()
+                return [comp.split("/", 1)[0]] if comp else []
+            if role == "sms":
+                v = self.get_setting("secure", "sms_default_application")
+                return [v] if v else []
+            return []
+        return [p for p in r.out.replace(",", " ").split() if PKG_RE.match(p)]
+
+    def set_role(self, role: str, pkg: str) -> Result:
+        full = self.ROLES.get(role, role)
+        if not re.match(r"^[A-Za-z][\w.]*$", full):
+            raise AdbError(f"not a role name: {role!r}")
+        return self.shell(
+            f"cmd role add-role-holder {full} {_pkg(pkg)}", timeout=30)
+
+    def clear_role(self, role: str, pkg: str) -> Result:
+        full = self.ROLES.get(role, role)
+        if not re.match(r"^[A-Za-z][\w.]*$", full):
+            raise AdbError(f"not a role name: {role!r}")
+        return self.shell(
+            f"cmd role remove-role-holder {full} {_pkg(pkg)}", timeout=30)
+
+    # -- the keyboard
+
+    def imes(self, *, enabled_only: bool = False) -> list[str]:
+        flag = "" if enabled_only else " -a"
+        r = self.shell(f"ime list -s{flag}", timeout=25)
+        return [line.strip() for line in r.out.splitlines()
+                if "/" in line.strip()]
+
+    def current_ime(self) -> str:
+        return self.get_setting("secure", "default_input_method") or ""
+
+    def set_ime(self, ime_id: str) -> Result:
+        """Enable then select an input method. Both steps are needed."""
+        if not re.match(r"^[A-Za-z][\w.]*/[\w.$]+$", ime_id):
+            raise AdbError(f"not an input-method id: {ime_id!r}")
+        self.shell(f"ime enable {ime_id}", timeout=25)
+        return self.shell(f"ime set {ime_id}", timeout=25)
+
     # -- battery optimisation exemptions (the doze whitelist)
 
     def doze_whitelist(self) -> set[str]:
@@ -302,11 +368,59 @@ class Device:
         # need them to read the app list on some OEM builds).
         return self.adb("install", "-r", "-g", apk_path, timeout=timeout)
 
-    def set_home(self, pkg: str) -> Result:
-        """Nudge the home-screen chooser. Android will still ask the user to confirm."""
-        return self.shell(
-            "cmd package set-home-activity "
-            f"{_pkg(pkg)} 2>/dev/null || true", timeout=25)
+    def home_activity(self, pkg: str) -> str:
+        """The `pkg/Activity` component that `pkg` offers as a home screen.
+
+        `set-home-activity` wants a full component, not a package. Resolving
+        it here rather than guessing at `.MainActivity` is the difference
+        between this working and silently doing nothing.
+        """
+        want = _pkg(pkg)
+        r = self.shell(
+            "cmd package query-activities -a android.intent.action.MAIN "
+            "-c android.intent.category.HOME", timeout=30)
+        name = ""
+        for line in r.out.splitlines():
+            line = line.strip()
+            m = re.match(r"name=([A-Za-z][\w.$]*)$", line)
+            if m and m.group(1).startswith(want + "."):
+                name = m.group(1)
+                break
+            if line == f"packageName={want}" and name:
+                break
+        if name:
+            return f"{want}/{name}"
+        # Older builds print components as pkg/Activity directly.
+        m = re.search(rf"{re.escape(want)}/([\w.$]+)", r.out)
+        return f"{want}/{m.group(1)}" if m else ""
+
+    def current_home(self) -> str:
+        """The component currently set as Home, or ''."""
+        r = self.shell("cmd shortcut get-default-launcher", timeout=25)
+        m = re.search(r"ComponentInfo\{([^}]+)\}", r.out)
+        return m.group(1) if m else ""
+
+    def set_home(self, component: str) -> Result:
+        """Make `component` (pkg/Activity) the home screen.
+
+        `cmd package set-home-activity` really does work over ADB without
+        root. This project previously claimed Android forbids it and told
+        people to press Home and choose by hand; that was wrong, and on One
+        UI pressing Home does not even offer a chooser, so the advice left
+        people stuck on the stock launcher.
+        """
+        if "/" not in component:
+            raise AdbError(f"set_home wants pkg/Activity, got {component!r}")
+        pkg, _, activity = component.partition("/")
+        _pkg(pkg)
+        if not re.match(r"^[A-Za-z][\w.$]*$", activity):
+            raise AdbError(f"not an activity name: {activity!r}")
+        r = self.shell(f"cmd package set-home-activity {pkg}/{activity}",
+                       timeout=30)
+        if r.ok and "Success" not in r.out:
+            # Some builds exit 0 while printing an error.
+            return Result(1, r.out, r.err or "set-home-activity did not report Success")
+        return r
 
     # -- waiting
 

@@ -388,16 +388,33 @@ class Api:
                 actions.append(act)
                 self.s.say(f"{a.name} installed" if act.ok
                            else f"{a.name}: {act.result}", ok=act.ok)
+                if not act.ok or not a.fills_role:
+                    continue
+                # Make it the default straight away: the point of this tool
+                # is that nobody has to pick things up and tap through
+                # Settings.
+                dflt = plan.make_default(d, a.pkg, a.fills_role, a.name)
+                if dflt is None:
+                    self.s.say(f"{a.name} is installed, but Android has no "
+                               f"'default {a.fills_role}' setting to point at "
+                               f"it; it will be offered when you open an "
+                               f"image or file.")
+                    continue
+                plan.apply(d, dflt)
+                actions.append(dflt)
+                self.s.say(dflt.describe() + ("" if dflt.ok
+                                              else f"  —  {dflt.result}"),
+                           ok=dflt.ok)
             if actions:
                 journal.record(self.s.serial, "installed apps", {
                     "name": self.s.prof.name,
                     "android": self.s.prof.android}, actions)
             if launchers:
-                self.s.say("Now press Home on the phone and choose "
-                           f"{launchers[0].name}. Android does not let a tool "
-                           "over ADB pick your home screen for you, on "
-                           "purpose. Once it is set, come back and the old "
-                           "launcher becomes safe to turn off.", done=True)
+                self.s.say(f"{launchers[0].name} is now the home screen. "
+                           "The old launcher is recorded, so Undo puts it "
+                           "back, and it is now safe to turn off — which is "
+                           "usually the single biggest memory saving on the "
+                           "phone.", done=True)
             else:
                 self.s.say("Done.", done=True)
             with self.s.lock:

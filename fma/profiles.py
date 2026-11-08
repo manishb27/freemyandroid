@@ -159,6 +159,23 @@ def build_context(prof: device.Profile, *, quick: bool = False) -> Context:
             if cand in prof.enabled:
                 ctx.role_holders[role] = cand
                 break
+
+    # The candidate lists are a preference-ordered guess, which is fine for
+    # roles Android will not tell us about and wrong for the ones it will.
+    # Without this, installing a new launcher leaves the guard still naming
+    # the *stock* launcher as "the current launcher" — because it sits first
+    # in the list — and the one package you most wanted to turn off stays
+    # protected for the wrong reason.
+    if ctx.current_launcher:
+        ctx.role_holders["launcher"] = ctx.current_launcher
+    for role, key in (("sms", "sms"), ("dialer", "dialer"),
+                      ("browser", "browser")):
+        try:
+            holders = d.role_holders(role)
+        except adb.AdbError:
+            continue
+        if holders and holders[0] in prof.installed:
+            ctx.role_holders[key] = holders[0]
     return ctx
 
 
