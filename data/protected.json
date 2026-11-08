@@ -65,6 +65,12 @@
     "com.sec.epdg",
     "com.samsung.android.providers.",
     "com.samsung.android.wifi.",
+    "com.samsung.android.networkstack",
+    "com.oplus.battery",
+    "com.oplus.networkstack",
+    "com.coloros.networkstack",
+    "com.miui.networkassistant",
+    "com.android.networkstack",
     "com.samsung.android.incallui",
     "com.miui.securitycore",
     "com.android.internal.",
@@ -77,7 +83,8 @@
     "dialer": "You cannot answer or place calls, including emergency calls.",
     "sms": "Text messages, and every one-time passcode, stop arriving.",
     "keyboard": "You cannot type anything, including your own PIN on some lock screens.",
-    "browser": "Links from every other app go nowhere."
+    "browser": "Links from every other app go nowhere.",
+    "banking_upi": "This is the phone's payment app. Turning it off is the kind of thing you discover at a shop counter, so it is never done automatically even though it arrived as a preload."
   },
   "accessibility": [
     "com.google.android.marvin.talkback",

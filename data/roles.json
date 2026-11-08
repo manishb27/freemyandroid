@@ -1,6 +1,7 @@
 {
   "note": "What a phone needs in order to still be a phone. Each role lists candidate packages in preference order; the first one actually installed on the device fills the role. Elder mode keeps these and turns off nearly everything else, and every profile refuses to disable the package currently filling a role unless a replacement is in place.",
   "roles": {
+    "launcher": ["com.sec.android.app.launcher", "com.miui.home", "com.android.launcher3", "com.android.launcher", "com.google.android.apps.nexuslauncher", "net.oneplus.launcher", "com.oplus.launcher", "com.coloros.launcher", "com.bbk.launcher2", "com.transsion.XOSLauncher", "com.motorola.launcher3", "org.fossify.home", "app.lawnchair", "de.mm20.launcher2.release", "app.olauncher", "fr.neamar.kiss"],
     "dialer": ["com.google.android.dialer", "com.android.dialer", "com.samsung.android.dialer", "com.android.contacts", "com.oplus.dialer", "com.coloros.dialer", "com.miui.dialer", "com.android.incallui"],
     "sms": ["com.google.android.apps.messaging", "com.samsung.android.messaging", "com.android.mms", "com.android.messaging", "com.oplus.mms", "com.miui.mms"],
     "contacts": ["com.google.android.contacts", "com.android.contacts", "com.samsung.android.app.contacts", "com.oplus.contacts", "com.miui.contacts"],

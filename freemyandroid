@@ -12,6 +12,9 @@ so the same thing can be scripted or run over SSH where curses is awkward.
     ./freemyandroid battery [serial]     what is costing power
     ./freemyandroid apps                 the app catalogue
     ./freemyandroid bundle <dir> [id…]   pre-download APKs for offline use
+    ./freemyandroid adb get              download adb for this computer
+    ./freemyandroid adb where            show which adb is being used
+    ./freemyandroid adb bundle <dir>     adb for Linux, macOS and Windows
     ./freemyandroid undo [serial]        list recorded runs
 
 `plan` only ever prints. Nothing on this command line changes a phone; that
@@ -159,6 +162,45 @@ def cmd_bundle(argv: list[str]) -> int:
     return 0
 
 
+def cmd_adb(argv: list[str]) -> int:
+    """Get adb, or stage it for other platforms."""
+    from fma import platform_tools as pt
+    sub = argv[0] if argv else "get"
+
+    def progress(done: int, total: int) -> None:
+        if total:
+            pct = done * 100 // total
+            print(f"\r  {pct:3d}%  {done / 1e6:5.1f} / {total / 1e6:.1f} MB",
+                  end="", flush=True)
+
+    if sub == "where":
+        from fma import adb
+        try:
+            print(adb.find_adb())
+            return 0
+        except adb.AdbError as e:
+            print(e)
+            return 1
+    if sub == "bundle":
+        dest = argv[1] if len(argv) > 1 else "./platform-tools"
+
+        def bp(plat: str, done: int, total: int) -> None:
+            if total and done >= total:
+                print(f"  {plat}: {total / 1e6:.1f} MB")
+
+        paths = pt.bundle_all(dest, progress=bp)
+        print(f"{len(paths)} zips in {dest} (linux, macOS, Windows)")
+        return 0
+    if sub == "get":
+        print(f"platform: {pt.host_platform()}")
+        print(f"source:   {pt.url_for()}")
+        path = pt.ensure(progress=progress)
+        print(f"\nadb: {path}")
+        return 0
+    print("usage: freemyandroid adb [get|where|bundle <dir>]")
+    return 2
+
+
 def cmd_undo(argv: list[str]) -> int:
     from fma import journal
     serial = _one_device(argv)
@@ -181,6 +223,7 @@ COMMANDS = {
     "battery": cmd_battery,
     "apps": cmd_apps,
     "bundle": cmd_bundle,
+    "adb": cmd_adb,
     "undo": cmd_undo,
 }
 

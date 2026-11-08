@@ -103,6 +103,7 @@ class Context:
     launchers: list[str] = field(default_factory=list)
     current_launcher: str = ""
     role_holders: dict[str, str] = field(default_factory=dict)
+    home_screen: set[str] = field(default_factory=set)
     doze: set[str] = field(default_factory=set)
     entries: dict[str, Entry] = field(default_factory=dict)
     protected: dict = field(default_factory=dict)
@@ -150,6 +151,7 @@ def build_context(prof: device.Profile, *, quick: bool = False) -> Context:
     ctx.launchers = device.installed_launchers(d)
     ctx.current_launcher = device.current_launcher(d)
     ctx.doze = d.doze_whitelist()
+    ctx.home_screen = _home_screen_apps(ctx)
 
     role_defs = ctx.roles.get("roles", {})
     for role, candidates in role_defs.items():
@@ -183,6 +185,14 @@ def _ops_for(spec: list[dict], ctx: Context, source: str) -> list[Action]:
 
 
 def build(ctx: Context, profile_id: str, intensity: str) -> Plan:
+    """Turn a choice into a Plan.
+
+    Everything this needs from the phone is already on `ctx`, gathered once by
+    `build_context`. The only device call left is the check in `_already_set`,
+    which tolerates an absent phone. That keeps planning testable without
+    hardware, and it is why `_home_screen_apps` is read in `build_context`
+    rather than here.
+    """
     profs = {p["id"]: p for p in load_profiles()}
     if profile_id not in profs:
         raise KeyError(f"no such profile: {profile_id}")
@@ -252,7 +262,7 @@ def _build_allowlist(plan: Plan, ctx: Context, prof: dict, tier: dict,
             if cand in ctx.prof.installed:
                 keep.add(cand)
     if tier.get("keep_home_screen_apps", False):
-        keep |= _home_screen_apps(ctx)
+        keep |= ctx.home_screen
     keep |= set(ctx.launchers)
 
     for pkg in sorted(ctx.launchable):

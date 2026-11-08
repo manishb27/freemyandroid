@@ -39,6 +39,20 @@
     {"id": "com.samsung.android.messaging", "label": "Samsung Messages", "risk": "risky", "tags": ["sms"], "note": "SMS stops arriving anywhere unless another SMS app is set as default first."},
     {"id": "com.sec.android.app.launcher", "label": "One UI Home", "risk": "risky", "tags": ["launcher"], "note": "The home screen. Install another launcher and set it as Home first, or the phone boots to a blank screen."},
     {"id": "com.samsung.android.networkstack", "label": "Samsung Network Stack", "risk": "risky", "tags": ["system"], "note": "Wi-Fi and mobile data. Never."},
-    {"id": "com.samsung.android.bixby.service", "label": "Bixby Service", "risk": "caution", "tags": ["assistant"], "note": "Some One UI builds use this for the side-key menu and settings search."}
+    {"id": "com.samsung.android.bixby.service", "label": "Bixby Service", "risk": "caution", "tags": ["assistant"], "note": "Some One UI builds use this for the side-key menu and settings search."},
+    {"id": "com.mygalaxy", "label": "My Galaxy", "risk": "safe", "tags": ["ads", "partner", "bloat"], "note": "Samsung India's offers-and-coupons app. Pure promotion."},
+    {"id": "com.samsung.ecomm.global.in", "label": "Samsung Shop (India)", "risk": "safe", "tags": ["ads", "store", "bloat"]},
+    {"id": "com.samsung.android.spaymini", "label": "Samsung Pay mini", "risk": "safe", "tags": ["finance", "bloat"], "note": "Discontinued in most markets. Not the same as Samsung Wallet."},
+    {"id": "com.samsung.android.dynamiclock", "label": "Dynamic Lock screen", "risk": "safe", "tags": ["ads", "battery", "bloat"], "note": "Downloads rotating lock-screen wallpapers over the network, some of them promotional. A steady background-job source."},
+    {"id": "com.sec.android.easyMover", "label": "Smart Switch", "risk": "safe", "tags": ["bloat"], "note": "Only used when moving to a new phone."},
+    {"id": "com.sec.android.easyMover.Agent", "label": "Smart Switch Agent", "risk": "safe", "tags": ["bloat"]},
+    {"id": "com.sec.android.diagmonagent", "label": "Diagnostic Agent (DiagMon)", "risk": "safe", "tags": ["telemetry", "privacy"], "note": "Samsung's diagnostic log uploader."},
+    {"id": "com.samsung.android.mdx", "label": "Link to Windows service", "risk": "safe", "tags": ["bloat"]},
+    {"id": "com.samsung.android.mdx.quickboard", "label": "Link to Windows board", "risk": "safe", "tags": ["bloat"]},
+    {"id": "com.samsung.discover", "label": "Samsung Discover", "risk": "safe", "tags": ["ads", "bloat"], "note": "A promotional feed for Samsung products."},
+    {"id": "com.sec.android.app.fm", "label": "FM Radio", "risk": "safe", "tags": ["media", "bloat"], "note": "Works without mobile data and needs wired headphones as an aerial. Keep it if that matters to you."},
+    {"id": "com.samsung.android.scs", "label": "Samsung Cloud Service (SCS)", "risk": "caution", "tags": ["telemetry", "oem-cloud"], "note": "Backs several One UI features including some Bixby and keyboard prediction. Doze-exempt and a steady job source."},
+    {"id": "com.samsung.android.mobileservice", "label": "Samsung Mobile Service", "risk": "caution", "tags": ["oem-cloud", "telemetry"], "note": "Samsung account plumbing for sharing and Galaxy features."},
+    {"id": "com.samsung.android.lool", "label": "Device Care", "risk": "caution", "tags": ["bloat"], "note": "The battery and storage page in Settings lives here."}
   ]
 }

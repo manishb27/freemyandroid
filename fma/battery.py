@@ -32,6 +32,7 @@ class Hog:
     dozed: bool = False         # exempt from battery optimisation
     known: str = ""             # risk from the curated lists, if listed
     tags: list[str] = field(default_factory=list)
+    shared_uid: int = 0         # other packages billed to the same uid
 
     @property
     def wake_min(self) -> float:
@@ -72,6 +73,10 @@ class Hog:
             bits.append(f"{self.jobs} jobs")
         if self.dozed:
             bits.append("exempt from doze")
+        if self.shared_uid:
+            bits.append(f"uid shared with {self.shared_uid} other"
+                        f"{'s' if self.shared_uid != 1 else ''}, so the power "
+                        "is split evenly rather than measured")
         return ", ".join(bits) or "no measurable activity"
 
 
@@ -119,19 +124,21 @@ def _batterystats(d: adb.Device) -> tuple[dict[str, float], dict[str, int], str]
         since = m.group(1).strip()[:80]
 
     mah: dict[str, float] = {}
-    # "Estimated power use (mAh):" then lines like "    Uid u0a234: 12.3"
-    block = re.search(r"Estimated power use \(mAh\):(.*?)(?:\n\s*\n|\Z)", text, re.S)
+    # The section is headed "Estimated power use (mAh):" and the per-app lines
+    # differ by Android version. Android 12 writes, with a capital UID and a
+    # breakdown in brackets:
+    #     UID u0a119: 2.14 ( cpu=2.09 audio=0.00705 wakelock=0.0363 )
+    #     UID 1000: 4.90 ( cpu=4.89 sensors=0.0101 )
+    # Older releases write "Uid u0a234: 12.3" with no brackets. Matching both,
+    # case-insensitively, because getting the case wrong here silently drops
+    # every power figure and leaves a report that looks like it worked.
+    block = re.search(r"Estimated power use \(mAh\):(.*?)(?:\n\s{0,2}\S|\Z)",
+                      text, re.S)
     if block:
         for line in block.group(1).splitlines():
-            m = re.match(r"\s*Uid\s+u?(\d+a?\d*):\s*([\d.]+)", line.strip())
+            m = re.match(r"\s*UID\s+(u\d+a\d+|\d+):\s*([\d.]+)", line, re.I)
             if m:
-                raw = m.group(1)
-                mah[_normalise_uid(raw)] = float(m.group(2))
-            else:
-                m = re.match(r"\s*Uid\s+u(\d+)a(\d+):\s*([\d.]+)", line.strip())
-                if m:
-                    uid = str(10000 + int(m.group(2)))
-                    mah[uid] = float(m.group(3))
+                mah[_normalise_uid(m.group(1))] = float(m.group(2))
 
     wake: dict[str, int] = {}
     # "All partial wake locks:" then "  Wake lock <uid> <name>: NNm NNs ... partial"
@@ -149,11 +156,14 @@ def _batterystats(d: adb.Device) -> tuple[dict[str, float], dict[str, int], str]
 
 
 def _normalise_uid(raw: str) -> str:
-    """batterystats writes app uids as 'u0a234', meaning 10000 + 234."""
-    m = re.match(r"^(\d+)a(\d+)$", raw)
+    """'u0a119' means Android user 0, app 119, which is uid 10119.
+
+    Bare numbers (1000, 1010, 0) are system uids and are already real uids.
+    """
+    m = re.match(r"^u(\d+)a(\d+)$", raw, re.I)
     if m:
         return str(int(m.group(1)) * 100000 + 10000 + int(m.group(2)))
-    return raw
+    return raw.lstrip("uU")
 
 
 def _duration_ms(text: str) -> int:
@@ -248,14 +258,19 @@ def report(d: adb.Device, entries: dict | None = None, *,
         for uid, value in mah.items():
             pkgs = uids.get(uid, [])
             if not pkgs:
-                continue
+                continue    # a system uid with no package of its own
             share = value / len(pkgs)
             for pkg in pkgs:
                 h = hog(pkg)
                 h.mah += share
-                if len(pkgs) > 1:
-                    h.label += f"  (uid shared with {len(pkgs) - 1} other)"
+                h.shared_uid = len(pkgs) - 1
+        # A wake lock's *name* often looks exactly like a package name —
+        # "IpReachabilityMonitor.wlan0" sails through any sane package regex.
+        # Only names that are genuinely installed are attributed.
+        real = {p for group in uids.values() for p in group}
         for pkg, ms in wake.items():
+            if real and pkg not in real:
+                continue
             hog(pkg).wake_ms += ms
     except adb.AdbError:
         rep.missing.append("batterystats")

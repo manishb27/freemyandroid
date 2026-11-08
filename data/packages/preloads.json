@@ -33,6 +33,22 @@
     {"id": "com.ironsource.appcloud.oobe", "label": "ironSource AppCloud", "risk": "safe", "tags": ["partner", "ads", "telemetry"], "note": "No icon. The 'recommended apps' screen during setup, and it keeps running after."},
     {"id": "com.aura.oobe", "label": "Aura / ironSource", "risk": "safe", "tags": ["partner", "ads", "telemetry"]},
     {"id": "com.digitalturbine.android.apps.news", "label": "Digital Turbine News", "risk": "safe", "tags": ["partner", "ads"]},
-    {"id": "com.dti.folderlauncher", "label": "Digital Turbine folder", "risk": "safe", "tags": ["partner", "ads"], "note": "Injects a folder of sponsored apps into the home screen."}
+    {"id": "com.dti.folderlauncher", "label": "Digital Turbine folder", "risk": "safe", "tags": ["partner", "ads"], "note": "Injects a folder of sponsored apps into the home screen."},
+    {"id": "com.aura.oobe.samsung", "label": "Aura / ironSource (Samsung)", "risk": "safe", "tags": ["partner", "ads", "telemetry"], "note": "The Samsung build of ironSource's 'recommended apps' installer. Keeps running after setup and is doze-exempt."},
+    {"id": "com.app.dream11Pro", "label": "Dream11", "risk": "safe", "tags": ["partner", "games", "ads"], "note": "Real-money fantasy sports, preinstalled on Indian retail units."},
+    {"id": "com.block.juggle", "label": "Block Juggle (game)", "risk": "safe", "tags": ["partner", "games", "ads"]},
+    {"id": "com.bubbleshooter.popbubbles.collectcards", "label": "Bubble Shooter (game)", "risk": "safe", "tags": ["partner", "games", "ads"]},
+    {"id": "com.microsoft.office.outlook", "label": "Outlook (preload)", "risk": "safe", "tags": ["partner", "office"], "note": "Samsung ships Microsoft's apps under a partnership. Disable unless you use Outlook."},
+    {"id": "com.microsoft.skydrive", "label": "OneDrive (preload)", "risk": "safe", "tags": ["partner", "office"], "note": "On Samsung, Gallery can sync to OneDrive. If you set that up, turning this off stops it."},
+    {"id": "com.microsoft.appmanager", "label": "Link to Windows", "risk": "safe", "tags": ["partner", "bloat"], "note": "Only useful if you pair the phone with a Windows PC."},
+    {"id": "com.opera.max.oem", "label": "Opera Max / Samsung Max", "risk": "safe", "tags": ["partner", "privacy", "bloat"], "note": "A 'data saver' VPN that proxies your traffic. Discontinued by Opera and still shipping."},
+    {"id": "com.ubercab", "label": "Uber (preload)", "risk": "safe", "tags": ["partner", "bloat"]},
+    {"id": "in.zestmoney.android.zestlife", "label": "ZestMoney", "risk": "safe", "tags": ["partner", "finance", "ads"], "note": "Consumer lending app, preinstalled on Indian retail units."},
+    {"id": "com.flipkart.android", "label": "Flipkart (preload)", "risk": "safe", "tags": ["partner", "ads"]},
+    {"id": "com.snapdeal.main", "label": "Snapdeal (preload)", "risk": "safe", "tags": ["partner", "ads"]},
+    {"id": "com.jio.myjio", "label": "MyJio (preload)", "risk": "safe", "tags": ["partner", "carrier", "ads"]},
+    {"id": "com.jio.media.jiobeats", "label": "JioSaavn (preload)", "risk": "safe", "tags": ["partner", "media", "ads"]},
+    {"id": "com.hotstar.android", "label": "Hotstar (preload)", "risk": "safe", "tags": ["partner", "media"]},
+    {"id": "in.startv.hotstar", "label": "Disney+ Hotstar (preload)", "risk": "safe", "tags": ["partner", "media"]}
   ]
 }

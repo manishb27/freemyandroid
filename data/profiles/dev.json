@@ -14,10 +14,9 @@
     },
     "extreme": {
       "label": "Extreme",
-      "blurb": "Also the OEM stores, themes, games hubs and assistants. Keeps anything a developer touches: Play Store, browsers, Files, Drive.",
+      "blurb": "Also the OEM stores, themes, games hubs and assistants. Anything a developer touches is kept by omission: Chrome, Drive and Docs are tagged 'google' and 'office', and this tier asks for neither, so they are never candidates. A preinstalled Outlook still goes, because it is a paid-for preload rather than a tool you chose.",
       "max_risk": "caution",
-      "tags": ["ads", "telemetry", "partner", "privacy", "bloat", "store", "games", "ar", "assistant", "kids"],
-      "never_tags": ["browser", "office", "sync"]
+      "tags": ["ads", "telemetry", "partner", "privacy", "bloat", "store", "games", "ar", "assistant", "kids"]
     },
     "ultra": {
       "label": "Ultra",

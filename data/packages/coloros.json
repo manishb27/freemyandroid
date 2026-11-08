@@ -26,7 +26,7 @@
     {"id": "com.coloros.video", "label": "ColorOS Video", "risk": "safe", "tags": ["media", "bloat"]},
     {"id": "com.nearme.atlas", "label": "Nearme Pay", "risk": "safe", "tags": ["finance", "bloat"]},
     {"id": "com.nearme.statistics.rom", "label": "Nearme Statistics", "risk": "safe", "tags": ["telemetry"]},
-    {"id": "com.oplus.account", "label": "OPlus Account", "risk": "caution", "tags": ["oem-cloud"]},
+    {"id": "com.oplus.account", "label": "OPlus Account", "risk": "caution", "tags": ["oem-cloud"], "note": "Signs you out of the OnePlus/OPPO account. Find My Device and cloud backup stop with it."},
     {"id": "com.oneplus.brickmode", "label": "Zen Mode", "risk": "safe", "tags": ["bloat"]},
     {"id": "com.oneplus.gamespace", "label": "OnePlus Game Space", "risk": "safe", "tags": ["games", "bloat"]},
     {"id": "net.oneplus.weather", "label": "OnePlus Weather", "risk": "safe", "tags": ["bloat"]},
