@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""Free My Android — debloat a phone over ADB, from a terminal.
+
+Run it with no arguments for the full-screen interface. The subcommands exist
+so the same thing can be scripted or run over SSH where curses is awkward.
+
+    ./freemyandroid                      the interface
+    ./freemyandroid devices              what is connected
+    ./freemyandroid scan                 find phones on this network
+    ./freemyandroid info [serial]        what kind of phone it is
+    ./freemyandroid plan <profile> <standard|extreme|ultra> [serial]
+    ./freemyandroid battery [serial]     what is costing power
+    ./freemyandroid apps                 the app catalogue
+    ./freemyandroid bundle <dir> [id…]   pre-download APKs for offline use
+    ./freemyandroid undo [serial]        list recorded runs
+
+`plan` only ever prints. Nothing on this command line changes a phone; that
+needs the interface, where it can be confirmed.
+"""
+
+from __future__ import annotations
+
+import sys
+
+MIN_PYTHON = (3, 10)
+if sys.version_info < MIN_PYTHON:
+    sys.exit(f"Free My Android needs Python {'.'.join(map(str, MIN_PYTHON))} "
+             f"or newer; this is {sys.version.split()[0]}.")
+
+
+def _one_device(argv: list[str]) -> str:
+    from fma import adb
+    if argv:
+        return argv[0]
+    usable = [d for d in adb.devices() if d.usable]
+    if not usable:
+        sys.exit("No phone is connected. Try: ./freemyandroid scan")
+    if len(usable) > 1:
+        names = "\n  ".join(f"{d.serial}  {d.label}" for d in usable)
+        sys.exit(f"More than one phone is connected; name the one you mean:\n  {names}")
+    return usable[0].serial
+
+
+def cmd_devices(_argv: list[str]) -> int:
+    from fma import adb
+    found = adb.devices()
+    if not found:
+        print("Nothing connected.")
+        return 1
+    for d in found:
+        print(f"{d.serial:28} {d.state:14} {d.label}")
+    return 0
+
+
+def cmd_scan(_argv: list[str]) -> int:
+    from fma import discover
+    found = discover.find(timeout=6.0)
+    if not found:
+        print("Nothing found. Turn on Wireless debugging in Developer options "
+              "and keep that screen open; Android stops advertising when the "
+              "screen sleeps.")
+        return 1
+    for f in found:
+        print(f"{f.kind:9} {f.instance:34} {f.host_port}")
+    return 0
+
+
+def cmd_info(argv: list[str]) -> int:
+    from fma import device, profiles
+    serial = _one_device(argv)
+    prof = device.read(serial)
+    print(f"{prof.name}")
+    print(f"  {prof.android_label}, build {prof.build}")
+    print(f"  manufacturer {prof.manufacturer} (list: {prof.vendor_key})")
+    print(f"  {prof.total_ram_mb} MB RAM, ABI {prof.abi or 'unknown'}")
+    print(f"  {len(prof.installed)} packages, {len(prof.disabled)} disabled")
+    print(f"  Linux VM (AVF): {prof.avf}")
+    print(f"  wireless debugging supported: {prof.supports_wireless_debug}")
+    print(f"  phantom process killer present: {prof.has_phantom_killer}")
+    ctx = profiles.build_context(prof)
+    print(f"  home screen: {ctx.current_launcher or 'unknown'}")
+    print(f"  launchers installed: {', '.join(ctx.launchers) or 'none found'}")
+    for w in prof.warnings:
+        print(f"  ! {w}")
+    return 0
+
+
+def cmd_plan(argv: list[str]) -> int:
+    from fma import device, profiles
+    if len(argv) < 2:
+        sys.exit("usage: freemyandroid plan <fast|elder|dev> "
+                 "<standard|extreme|ultra> [serial]")
+    profile_id, intensity = argv[0], argv[1]
+    serial = _one_device(argv[2:])
+    prof = device.read(serial)
+    ctx = profiles.build_context(prof)
+    pl = profiles.build(ctx, profile_id, intensity)
+    print(f"{pl.title} on {prof.name}")
+    print(f"{len(pl.actions)} changes, {len(pl.skipped)} left alone\n")
+    for a in pl.actions:
+        print(f"  {a.risk:8} {a.describe()}")
+        if a.note:
+            print(f"           {a.note}")
+    if pl.skipped:
+        print("\nLeft alone:")
+        for pkg, why in pl.skipped:
+            print(f"  {pkg:52} {why}")
+    print("\nThis printed a plan and changed nothing. Run ./freemyandroid "
+          "to apply it.")
+    return 0
+
+
+def cmd_battery(argv: list[str]) -> int:
+    from fma import adb, battery, device, profiles
+    serial = _one_device(argv)
+    prof = device.read(serial)
+    ctx = profiles.build_context(prof, quick=True)
+    rep = battery.report(adb.Device(serial), ctx.entries, limit=30)
+    print(f"Sources: {', '.join(rep.sources) or 'none'}")
+    if rep.missing:
+        print(f"No data from: {', '.join(rep.missing)}")
+    print()
+    for h in rep.hogs:
+        print(f"{h.score:8.1f}  {(h.known or '-'):8} {h.label[:38]:40} {h.why}")
+    if rep.actionable:
+        print(f"\n{len(rep.actionable)} of these are already known to be safe "
+              "to turn off.")
+    return 0
+
+
+def cmd_apps(_argv: list[str]) -> int:
+    from fma import catalog
+    for a in catalog.load():
+        print(f"{a.id:24} {a.category:10} {a.name:28} {a.origin}")
+    return 0
+
+
+def cmd_bundle(argv: list[str]) -> int:
+    from fma import catalog
+    if not argv:
+        sys.exit("usage: freemyandroid bundle <dir> [app-id …]")
+    dest, ids = argv[0], argv[1:]
+    apps = catalog.load()
+    if ids:
+        known = {a.id for a in apps}
+        bad = [i for i in ids if i not in known]
+        if bad:
+            sys.exit(f"no such app id: {', '.join(bad)}")
+        apps = [a for a in apps if a.id in set(ids)]
+    seen = {"n": 0}
+
+    def progress(name: str, done: int, total: int) -> None:
+        if total and done >= total:
+            seen["n"] += 1
+            print(f"  [{seen['n']}/{len(apps)}] {name}")
+
+    paths = catalog.bundle(apps, dest, progress=progress)
+    print(f"{len(paths)} APKs in {dest}")
+    return 0
+
+
+def cmd_undo(argv: list[str]) -> int:
+    from fma import journal
+    serial = _one_device(argv)
+    runs = journal.load(serial)
+    if not runs:
+        print("Nothing recorded for this phone.")
+        return 1
+    for r in runs:
+        print(f"{r.id:18} {r.summary}")
+    print(f"\nJournal: {journal.path_for(serial)}")
+    print("Reverse a run from the interface: ./freemyandroid")
+    return 0
+
+
+COMMANDS = {
+    "devices": cmd_devices,
+    "scan": cmd_scan,
+    "info": cmd_info,
+    "plan": cmd_plan,
+    "battery": cmd_battery,
+    "apps": cmd_apps,
+    "bundle": cmd_bundle,
+    "undo": cmd_undo,
+}
+
+
+def main() -> int:
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+    argv = sys.argv[1:]
+    if argv and argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    if not argv:
+        from fma.app import main as tui_main
+        return tui_main()
+    cmd = argv[0]
+    if cmd not in COMMANDS:
+        print(f"No such command: {cmd}\n")
+        print(__doc__.strip())
+        return 2
+    from fma import adb
+    try:
+        return COMMANDS[cmd](argv[1:])
+    except adb.AdbError as e:
+        print(f"{e}")
+        return 1
+    except KeyboardInterrupt:
+        return 130
+
+
+if __name__ == "__main__":
+    sys.exit(main())

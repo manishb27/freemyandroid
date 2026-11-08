@@ -1,0 +1,54 @@
+{
+  "id": "dev",
+  "name": "Developer / server",
+  "order": 3,
+  "summary": "Keep every capability, remove only the junk, then make the phone a machine that can actually hold a service up: no process killer, no doze, stays awake on the charger.",
+  "strategy": "denylist",
+  "note": "The debloat half is deliberately conservative. The valuable part of this profile is the other half: Android spends enormous effort killing long-running background work, and a phone that is serving something needs most of that effort switched off.",
+  "intensity": {
+    "standard": {
+      "label": "Standard",
+      "blurb": "Ads, analytics and paid preloads out. Every tool, store and service stays.",
+      "max_risk": "safe",
+      "tags": ["ads", "telemetry", "partner", "privacy"]
+    },
+    "extreme": {
+      "label": "Extreme",
+      "blurb": "Also the OEM stores, themes, games hubs and assistants. Keeps anything a developer touches: Play Store, browsers, Files, Drive.",
+      "max_risk": "caution",
+      "tags": ["ads", "telemetry", "partner", "privacy", "bloat", "store", "games", "ar", "assistant", "kids"],
+      "never_tags": ["browser", "office", "sync"]
+    },
+    "ultra": {
+      "label": "Ultra",
+      "blurb": "A headless server. Everything with a user interface that is not needed to administer the phone goes, including the camera, the gallery and the dialer, and the screen is set never to sleep on the charger.",
+      "max_risk": "risky",
+      "tags": ["ads", "telemetry", "partner", "privacy", "bloat", "store", "games", "ar", "assistant", "kids", "media", "social", "office", "health", "print"],
+      "confirm_twice": true,
+      "warn": "Ultra assumes this phone is a server you reach over the network and not a phone you carry. Do not run it on your daily driver.",
+      "extra_ops": [
+        {"kind": "setting", "target": "global/stay_on_while_plugged_in", "value": "7", "label": "Never sleep while charging (any charger type)", "note": "Value 7 is AC + USB + wireless. The screen staying on costs power and will age the panel; that is the trade for a machine that never drops off the network.", "risk": "caution"}
+      ]
+    }
+  },
+  "ops": [
+    {"kind": "setting", "target": "global/settings_enable_monitor_phantom_procs", "value": "false", "label": "Turn off the phantom process killer", "note": "Android 12 added a watchdog that kills an app's child processes once it has too many. It is the reason Termux servers die after a few minutes with no error. This is the single most important setting on this list.", "risk": "safe", "min_sdk": 31},
+    {"kind": "setting", "target": "global/stay_on_while_plugged_in", "value": "3", "label": "Stay awake while charging (AC and USB)", "note": "Keeps the device from dozing on the charger.", "risk": "safe"},
+    {"kind": "setting", "target": "secure/development_settings_enabled", "value": "1", "label": "Keep developer options on", "risk": "safe"},
+    {"kind": "setting", "target": "global/window_animation_scale", "value": "0", "label": "No window animations", "risk": "safe"},
+    {"kind": "setting", "target": "global/transition_animation_scale", "value": "0", "label": "No transition animations", "risk": "safe"},
+    {"kind": "setting", "target": "global/animator_duration_scale", "value": "0", "label": "No animator duration", "risk": "safe"},
+    {"kind": "doze_allow", "target": "com.termux", "label": "Exempt Termux from battery optimisation", "note": "Without this, doze suspends the whole Termux process group whenever the screen has been off for a while and your service stops answering.", "risk": "safe", "only_if_installed": true},
+    {"kind": "doze_allow", "target": "com.termux.boot", "label": "Exempt Termux:Boot from battery optimisation", "risk": "safe", "only_if_installed": true}
+  ],
+  "suggest_apps": ["termux", "termux-boot", "tailscale"],
+  "server": {
+    "note": "See docs/SERVER.md. The short version: real Docker cannot run on an unrooted phone, because dockerd needs kernel namespaces, cgroups and overlayfs and Android gives an app none of them. Four things do work.",
+    "paths": [
+      {"id": "proot", "name": "Termux + proot-distro", "speed": "fastest", "root": false, "blurb": "A Debian userland without containers. Run the service directly. Best for Stirling PDF, nginx, Node and Python apps.", "default": true},
+      {"id": "udocker", "name": "udocker", "speed": "medium", "root": false, "blurb": "Runs real OCI images in userspace via PRoot. No isolation and no Compose networking, but `udocker run` works."},
+      {"id": "avf", "name": "Android 16 Linux Terminal", "speed": "fast", "root": false, "blurb": "A genuine Debian VM with systemd, where Docker itself runs. Needs protected-VM hardware: Pixels, some Exynos Samsungs, not much else.", "requires": "avf"},
+      {"id": "qemu", "name": "QEMU VM in Termux", "speed": "slow", "root": false, "blurb": "Real dockerd in an Alpine guest. Works, and is slow enough that you will not enjoy it."}
+    ]
+  }
+}

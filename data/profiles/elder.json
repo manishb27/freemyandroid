@@ -1,0 +1,42 @@
+{
+  "id": "elder",
+  "name": "Elder",
+  "order": 2,
+  "summary": "Turn the phone into a handful of large, obvious things: calls, messages, camera, photos, WhatsApp. Everything else gets out of the way.",
+  "strategy": "allowlist",
+  "note": "This is the one profile that works by keeping a short list rather than removing a long one, because the problem it solves is not bloat. It is choice. An elderly user staring at nine screens of icons is the thing we are fixing.",
+  "intensity": {
+    "standard": {
+      "label": "Standard",
+      "blurb": "Keep the essentials plus anything already on the home screen. Bigger text, longer screen timeout, no screensaver.",
+      "max_risk": "safe",
+      "keep_home_screen_apps": true
+    },
+    "extreme": {
+      "label": "Extreme",
+      "blurb": "Keep only the essential roles: phone, messages, contacts, camera, gallery, clock, calculator, settings, WhatsApp, YouTube. Everything else with an icon is turned off.",
+      "max_risk": "caution",
+      "keep_home_screen_apps": false
+    },
+    "ultra": {
+      "label": "Ultra",
+      "blurb": "Phone, messages, contacts and camera. Nothing else. For someone who genuinely only wants a telephone.",
+      "max_risk": "caution",
+      "keep_home_screen_apps": false,
+      "keep_roles": ["dialer", "sms", "contacts", "camera", "gallery", "settings", "keyboard", "accessibility"],
+      "confirm_twice": true,
+      "warn": "This removes WhatsApp, YouTube and the Play Store from view. Make sure that is what the person wants, not what you find tidy."
+    }
+  },
+  "ops": [
+    {"kind": "setting", "target": "system/font_scale", "value": "1.30", "label": "Text size: large", "note": "Equivalent to the second-largest step in Settings. Some older apps clip their own buttons past this.", "risk": "safe"},
+    {"kind": "setting", "target": "system/screen_off_timeout", "value": "300000", "label": "Screen stays on for 5 minutes", "note": "A 30-second timeout is the single most common complaint from older users.", "risk": "safe"},
+    {"kind": "setting", "target": "secure/high_text_contrast_enabled", "value": "1", "label": "High contrast text", "risk": "safe"},
+    {"kind": "setting", "target": "secure/long_press_timeout", "value": "1000", "label": "Longer press before a long-press registers", "note": "Stops accidental drag-and-drop and context menus for an unsteady hand.", "risk": "safe"},
+    {"kind": "setting", "target": "secure/screensaver_enabled", "value": "0", "label": "No screensaver", "risk": "safe"},
+    {"kind": "setting", "target": "system/haptic_feedback_enabled", "value": "1", "label": "Touch feedback on", "note": "Confirms a tap landed, which matters when you cannot feel the button.", "risk": "safe"},
+    {"kind": "setting", "target": "global/heads_up_notifications_enabled", "value": "1", "label": "Notifications pop up on screen", "risk": "safe"}
+  ],
+  "suggest_apps": ["simple-launcher", "fossify-phone", "fossify-contacts", "fossify-gallery"],
+  "suggest_note": "A launcher with large tiles does more for an elderly user than any amount of debloating. Offered, never forced: switching someone's home screen without asking is its own kind of rude."
+}

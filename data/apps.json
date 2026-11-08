@@ -1,0 +1,42 @@
+{
+  "note": "Apps the tool can fetch and sideload, so nobody has to go hunting for an APK. Only two kinds of source are allowed: the official F-Droid repo, and a project's own GitHub releases. No mirrors, no APKPure, no 'APK download' sites — those are the exact places that serve repackaged binaries, and on some ISPs they are DNS-blocked anyway. Everything here is open source.",
+  "sources": {
+    "fdroid": "https://f-droid.org/repo — version resolved through https://f-droid.org/api/v1/packages/<pkg>",
+    "github": "https://api.github.com/repos/<repo>/releases/latest, asset chosen by regex"
+  },
+  "apps": [
+    {"id": "fdroid", "name": "F-Droid", "category": "store", "pkg": "org.fdroid.fdroid", "source": "fdroid", "blurb": "The store everything else here comes from. Install it so the person can update these apps themselves afterwards.", "recommend": ["fast", "elder", "dev"]},
+    {"id": "aurora", "name": "Aurora Store", "category": "store", "pkg": "com.aurora.store", "source": "fdroid", "blurb": "An anonymous front end for Google Play. Useful if you disabled the Play Store but still need an app that only exists there.", "note": "Taken from F-Droid: the old whyorean/AuroraStore GitHub releases are gone, the project moved to GitLab."},
+
+    {"id": "fossify-launcher", "name": "Fossify Launcher", "category": "launcher", "pkg": "org.fossify.home", "source": "fdroid", "blurb": "Plain, fast, no ads, no feed. The sane default replacement for a OEM launcher.", "recommend": ["fast", "dev"]},
+    {"id": "simple-launcher", "name": "Fossify Launcher (large tiles)", "category": "launcher", "pkg": "org.fossify.home", "source": "fdroid", "blurb": "Same app, configured for big icons and few of them. What Elder mode offers.", "config": "elder", "recommend": ["elder"]},
+    {"id": "olauncher", "name": "Olauncher", "category": "launcher", "pkg": "app.olauncher", "source": "fdroid", "blurb": "Text-only home screen, no icons at all. Drastic and very calming."},
+    {"id": "kvaesitso", "name": "Kvaesitso", "category": "launcher", "pkg": "de.mm20.launcher2.release", "source": "fdroid", "blurb": "Search-first launcher, the most polished of the open-source ones. Heavier than the others."},
+    {"id": "kiss", "name": "KISS", "category": "launcher", "pkg": "fr.neamar.kiss", "source": "fdroid", "blurb": "Tiny, search-driven, runs happily on an old phone."},
+    {"id": "lawnchair", "name": "Lawnchair", "category": "launcher", "pkg": "app.lawnchair", "source": "github", "repo": "LawnchairLauncher/lawnchair", "asset": "\\.apk$", "blurb": "Pixel-style launcher, closest to stock Android if that is what someone is used to."},
+
+    {"id": "fossify-phone", "name": "Fossify Phone", "category": "essential", "pkg": "org.fossify.phone", "source": "fdroid", "blurb": "A dialer with large buttons and no caller-ID upload.", "fills_role": "dialer", "recommend": ["elder"]},
+    {"id": "fossify-contacts", "name": "Fossify Contacts", "category": "essential", "pkg": "org.fossify.contacts", "source": "fdroid", "fills_role": "contacts", "recommend": ["elder"]},
+    {"id": "fossify-messages", "name": "Fossify Messages", "category": "essential", "pkg": "org.fossify.messages", "source": "fdroid", "fills_role": "sms", "blurb": "SMS without an ad-supported RCS layer on top."},
+    {"id": "fossify-gallery", "name": "Fossify Gallery", "category": "essential", "pkg": "org.fossify.gallery", "source": "fdroid", "fills_role": "gallery", "blurb": "Shows the photos on the phone. No cloud, no account.", "recommend": ["elder"]},
+    {"id": "fossify-clock", "name": "Fossify Clock", "category": "essential", "pkg": "org.fossify.clock", "source": "fdroid", "fills_role": "clock"},
+    {"id": "fossify-calculator", "name": "Fossify Calculator", "category": "essential", "pkg": "org.fossify.math", "source": "fdroid", "fills_role": "calculator", "note": "The package is org.fossify.math, not .calculator."},
+    {"id": "fossify-filemanager", "name": "Fossify File Manager", "category": "essential", "pkg": "org.fossify.filemanager", "source": "fdroid", "fills_role": "files"},
+    {"id": "openkeychain-keyboard", "name": "FUTO Keyboard", "category": "essential", "pkg": "org.futo.inputmethod.latin", "source": "github", "repo": "futo-org/android-keyboard", "asset": "\\.apk$", "blurb": "A keyboard that does not send what you type anywhere. Install before disabling Gboard.", "fills_role": "keyboard"},
+    {"id": "fennec", "name": "Fennec (Firefox)", "category": "essential", "pkg": "org.mozilla.fennec_fdroid", "source": "fdroid", "blurb": "Firefox built by F-Droid, with uBlock Origin available. Install before disabling Chrome.", "fills_role": "browser"},
+    {"id": "organic-maps", "name": "Organic Maps", "category": "essential", "pkg": "app.organicmaps", "source": "fdroid", "blurb": "Offline maps and navigation. The practical replacement if you turn off Google Maps.", "fills_role": "maps"},
+
+    {"id": "termux", "name": "Termux", "category": "server", "pkg": "com.termux", "source": "fdroid", "blurb": "The Linux userland everything in the server section runs inside.", "note": "From F-Droid on purpose. The Play Store build is abandoned, and the GitHub assets are debug-signed, so add-ons installed from anywhere else refuse to talk to them. Termux and its add-ons must all come from the same source.", "recommend": ["dev"]},
+    {"id": "termux-boot", "name": "Termux:Boot", "category": "server", "pkg": "com.termux.boot", "source": "fdroid", "blurb": "Runs your service scripts when the phone restarts. Without it, a reboot ends your server.", "note": "Signing key must match Termux, so this comes from F-Droid too.", "recommend": ["dev"]},
+    {"id": "termux-api", "name": "Termux:API", "category": "server", "pkg": "com.termux.api", "source": "fdroid", "blurb": "Lets scripts read the battery, hold a wake lock and send notifications."},
+    {"id": "tailscale", "name": "Tailscale", "category": "server", "pkg": "com.tailscale.ipn", "source": "github", "repo": "tailscale/tailscale-android", "asset": "\\.apk$", "blurb": "Reach the phone's services from anywhere without opening a port or touching the router.", "recommend": ["dev"]},
+    {"id": "shizuku", "name": "Shizuku", "category": "server", "pkg": "moe.shizuku.privileged.api", "source": "github", "repo": "RikkaApps/Shizuku", "asset": "\\.apk$", "blurb": "Gives other apps ADB-level access without a computer. Not needed by this tool, handy next to it."},
+
+    {"id": "syncthing", "name": "Syncthing-Fork", "category": "useful", "pkg": "com.github.catfriend1.syncthingandroid", "source": "github", "repo": "Catfriend1/syncthing-android", "asset": "\\.apk$", "blurb": "Keeps folders in sync with your other machines, peer to peer.", "note": "The original com.nutomic.syncthingandroid was discontinued in 2024 and is gone from F-Droid. This maintained fork is the successor."},
+    {"id": "keepassdx", "name": "KeePassDX", "category": "useful", "pkg": "com.kunzisoft.keepass.libre", "source": "fdroid", "blurb": "Offline password manager."},
+    {"id": "aegis", "name": "Aegis Authenticator", "category": "useful", "pkg": "com.beemdevelopment.aegis", "source": "fdroid", "blurb": "Two-factor codes, exportable, unlike Google Authenticator."},
+    {"id": "newpipe", "name": "NewPipe", "category": "useful", "pkg": "org.schabi.newpipe", "source": "fdroid", "blurb": "YouTube without the app, the ads or the account. What to install if you disabled YouTube."},
+    {"id": "vlc", "name": "VLC", "category": "useful", "pkg": "org.videolan.vlc", "source": "fdroid", "blurb": "Plays the media files the OEM player was the only thing opening."},
+    {"id": "pcapdroid", "name": "PCAPdroid", "category": "useful", "pkg": "com.emanuelef.remote_capture", "source": "fdroid", "blurb": "Shows what each app is actually talking to, with no root. Worth running before you decide what to disable."}
+  ]
+}

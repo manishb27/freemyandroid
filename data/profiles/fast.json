@@ -1,0 +1,34 @@
+{
+  "id": "fast",
+  "name": "Fast",
+  "order": 1,
+  "summary": "Strip the ads, the telemetry and the preloads. The phone stays exactly as capable, with less running behind your back.",
+  "strategy": "denylist",
+  "intensity": {
+    "standard": {
+      "label": "Standard",
+      "blurb": "Only things nobody misses: ad frameworks, analytics, paid-for preloads and no-icon background services. Nothing you can see disappears.",
+      "max_risk": "safe",
+      "tags": ["ads", "telemetry", "partner", "bloat", "privacy"]
+    },
+    "extreme": {
+      "label": "Extreme",
+      "blurb": "Also the OEM stores, themes, games hubs, assistants, AR toys and cloud services. You will notice these are gone; nothing breaks.",
+      "max_risk": "caution",
+      "tags": ["ads", "telemetry", "partner", "bloat", "privacy", "store", "games", "ar", "assistant", "oem-cloud", "kids", "print", "health"]
+    },
+    "ultra": {
+      "label": "Ultra",
+      "blurb": "Everything above plus the Google and OEM apps you have replacements for: Maps, Gmail, Docs, Chrome, OEM media players. Read the list before you apply it.",
+      "max_risk": "risky",
+      "tags": ["ads", "telemetry", "partner", "bloat", "privacy", "store", "games", "ar", "assistant", "oem-cloud", "kids", "print", "health", "media", "office", "social", "browser", "sync", "google"],
+      "confirm_twice": true,
+      "warn": "Ultra turns off apps you may actually use, including the Play Store and Maps if you have them. The role guard still protects the dialer, SMS, keyboard and home screen, and Play Services is never touched."
+    }
+  },
+  "ops": [
+    {"kind": "setting", "target": "global/window_animation_scale", "value": "0.5", "label": "Window animations at half speed", "note": "Makes the phone feel faster without the disorienting jump of turning animations off entirely.", "risk": "safe"},
+    {"kind": "setting", "target": "global/transition_animation_scale", "value": "0.5", "label": "Transition animations at half speed", "risk": "safe"},
+    {"kind": "setting", "target": "global/animator_duration_scale", "value": "0.5", "label": "Animator duration at half speed", "risk": "safe"}
+  ]
+}

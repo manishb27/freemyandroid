@@ -1,0 +1,224 @@
+<div align="center">
+
+# Free My Android
+
+**Debloat an Android phone from your terminal. Three profiles, three intensities, one button to undo.**
+
+Plug a phone in, or find it over Wi-Fi. Pick *Fast*, *Elder* or *Developer*.
+Pick how far to go. Read exactly what will change, then apply it.<br>
+No root. Nothing uninstalled. Nothing installed on the phone unless you ask.
+
+Python 3.10+ · no dependencies · MIT
+
+</div>
+
+## What it is
+
+A terminal interface over `adb`. It knows 179 packages across five curated
+lists, works out which of them are on *your* phone, and refuses to touch the
+57 that would turn it into a brick.
+
+Three profiles, because "debloat my phone" means three different things:
+
+| | What it does |
+|---|---|
+| **Fast** | Strip ads, analytics and paid-for preloads. The phone stays exactly as capable, with less running behind your back. |
+| **Elder** | Keep a handful of large, obvious things — calls, messages, camera, photos, WhatsApp — and get everything else out of the way. Bigger text, longer screen timeout, slower long-press. |
+| **Developer / server** | Keep every capability. Then switch off the things Android does to stop long-running background work, so the phone can actually hold a service up. |
+
+Each one runs at three intensities. They are not vague adjectives; they are a
+risk ceiling:
+
+- **Standard** — only what nobody misses. Nothing you can see disappears.
+- **Extreme** — also the OEM stores, themes, games hubs, assistants, cloud services. You will notice; nothing breaks.
+- **Ultra** — the apps you have replacements for. Asks twice, and makes you type `apply`.
+
+## Install
+
+```sh
+git clone https://github.com/manishb27/freemyandroid
+cd freemyandroid
+./freemyandroid
+```
+
+That is the whole install. It is Python 3.10+ and the standard library — no
+`pip`, no virtualenv, no build step. You need `adb`:
+
+```sh
+sudo apt install adb          # Debian, Ubuntu
+sudo dnf install android-tools # Fedora
+sudo pacman -S android-tools   # Arch
+brew install android-platform-tools  # macOS
+```
+
+## Connecting a phone
+
+**Over USB.** Settings → About phone → tap *Build number* seven times →
+Developer options → *USB debugging*. Plug it in and tap *Allow*.
+
+**Over Wi-Fi** (Android 11+). Developer options → *Wireless debugging* → on.
+Then in the tool: *Pair with a code*, then *Find a phone on this network*.
+
+Two things about wireless ADB that cost everyone an afternoon:
+
+- The pairing port and the connect port are **different**. The number under
+  *Pair device with pairing code* is not the one on the main screen.
+- Android **stops advertising when the screen sleeps**. Keep the Wireless
+  debugging screen open while you connect.
+
+Discovery here does not use `adb mdns services`, because Debian and Ubuntu
+ship `adb` with mDNS compiled out and that command then silently finds
+nothing. It speaks DNS-SD directly, and falls back to a unicast sweep of your
+subnet when the access point drops multicast between wireless clients — which
+a lot of home routers do.
+
+## Safety
+
+The honest version: this disables packages on a phone you presumably rely on.
+Here is every guard, and they all apply at every intensity, Ultra included.
+
+1. **`pm disable-user`, never `pm uninstall`.** The APK stays on disk. `pm enable` brings it straight back.
+2. **A hard guard list.** 57 packages and 11 vendor prefixes are never disabled by any profile at any intensity — `com.android.systemui`, the telephony stack, `com.google.android.gms`, Qualcomm and MediaTek components.
+3. **Role occupancy.** The app currently answering calls, sending texts, drawing the home screen or typing is not disabled unless something else can take over. 19 roles, resolved against what is really installed.
+4. **Accessibility.** A screen reader is never turned off automatically.
+5. **Already-off packages are left alone**, so undo never re-enables something you chose to disable yourself.
+6. **Every change is written down**, including a half-finished run, with the exact previous value of each setting.
+
+```
+Undo  →  pick a run  →  everything goes back
+```
+
+The journal lives in `~/.local/share/freemyandroid/journal/<serial>.json`.
+Settings return to the value they actually had, not to a guessed default.
+
+**What this cannot protect you from.** An OEM build that hides a Settings page
+inside an app we think is junk. A package nobody has catalogued, picked by hand
+in the Advanced screen — that one asks twice and tells you it is uncatalogued.
+And a phone where a factory reset is not an option you can live with: take a
+backup first.
+
+## What is draining the battery
+
+A curated list can tell you what a package *is*. It cannot tell you that on
+your phone a weather widget has held a wake lock for four hours. So this reads
+the phone's own accounting — `batterystats`, the alarm stats, the job
+scheduler, the doze whitelist — ranks what it finds, and cross-references the
+curated lists so you can see which of the offenders are also safe to remove.
+
+```
+   score  verdict   app                      why
+    47.2  safe      Glance                   112 mAh, awake 38 min, 410 alarms, exempt from doze
+     8.1  caution   HeyTap Push              24 wakeups, exempt from doze
+```
+
+`dumpsys` output is not a stable interface and differs by OEM and Android
+version. Each reader returns nothing rather than guessing, and the report says
+which readers produced data — so a thin report looks thin instead of being
+quietly wrong.
+
+## Apps and launchers
+
+Elder mode is not much use if the person is left staring at the same OEM
+launcher, and turning off Chrome is unkind if nothing else opens a link. So
+the tool can fetch and sideload 29 open-source apps: launchers, dialers,
+keyboards, browsers, and the Termux pieces the server profile needs.
+
+Only two sources are allowed, and that restriction is the entire security
+model: **the official F-Droid repo**, and **a project's own GitHub releases**.
+No mirrors, no APK-download sites. Those are where repackaged binaries come
+from, and plenty of ISPs sinkhole them anyway, so a download that "works" from
+one of those is worse than one that fails.
+
+Every download is SHA-256'd and recorded. `verify_signature()` will use
+`apksigner` if you happen to have the Android build-tools; it does not pretend
+to when you do not.
+
+If your network blocks the hosts, build the bundle somewhere that works:
+
+```sh
+./freemyandroid bundle ~/apks termux termux-boot tailscale
+```
+
+## The phone as a server
+
+The `dev` profile's real work is not debloating. It is this:
+
+```
+global/settings_enable_monitor_phantom_procs = false
+```
+
+Android 12 added a watchdog that kills an app's child processes once it has
+too many. It is the reason Termux servers die after a few minutes with no
+error in any log. Together with a doze exemption and *stay awake while
+charging*, that is the difference between a phone that serves something and a
+phone that used to.
+
+**Real Docker cannot run on an unrooted phone.** `dockerd` needs kernel
+namespaces, cgroups and overlayfs, and Android grants an app none of the
+three. Rooting helps less than people expect. Four things do work, and
+[`docs/SERVER.md`](docs/SERVER.md) covers all four — Termux + proot-distro,
+udocker, the Android 16 Linux Terminal VM, and QEMU — with what each one
+costs.
+
+## Command line
+
+The interface does everything. These exist for scripting and for SSH sessions
+where curses is awkward. **None of them change a phone.**
+
+```sh
+./freemyandroid devices                 # what is connected
+./freemyandroid scan                    # find phones on this network
+./freemyandroid info                    # what kind of phone it is
+./freemyandroid plan fast extreme       # print the plan, change nothing
+./freemyandroid battery                 # what is costing power
+./freemyandroid apps                    # the catalogue
+./freemyandroid bundle ~/apks           # pre-download APKs
+./freemyandroid undo                    # list recorded runs
+```
+
+## Adding to the lists
+
+`data/packages/*.json`. One entry per package:
+
+```json
+{"id": "com.miui.msa.global", "label": "MSA (ad framework)",
+ "risk": "safe", "tags": ["ads"],
+ "note": "The system ad service. Puts ads in Settings and the file manager."}
+```
+
+`risk` is `safe`, `caution` or `risky`, and it is the intensity ceiling, so
+getting it right is the whole job. `note` is what breaks — write it for
+someone who will read it at the moment they are deciding. Pull requests with a
+package name and no note are the ones that go wrong.
+
+`applies_to` matches against the vendor key resolved from
+`ro.product.manufacturer` and `ro.product.brand`; `["*"]` means every phone.
+
+## Status
+
+Early. The engine, the guards, the journal, discovery, the battery report, the
+catalogue and the interface all work and have been exercised against a real
+device. Not yet done: the web panel for the server profile (designed in
+`docs/SERVER.md`, not built), Vivo and Motorola package lists, and a test
+suite worth the name.
+
+Tested against: OnePlus Y Series (Android 11, API 30). If you run it on
+something, a line in an issue saying what happened is genuinely useful —
+especially if a guard fired when it should not have, or did not when it should.
+
+## Credit
+
+The idea, and the shape of the thing, come from
+[**Free My TV**](https://github.com/simbasjungles/free-my-tv) by
+[@simbasjungles](https://github.com/simbasjungles), which does this for
+televisions and does it beautifully. MIT, like this.
+
+[Universal Android Debloater Next Generation](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation)
+and [Canta](https://github.com/samolego/Canta) got here years earlier and are
+both excellent. If you want a GUI on your desktop or an app on the phone
+itself, use those. This exists for the terminal, for the three profiles, and
+for the undo journal.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
