@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" role="img" aria-label="Free My Android — debloat an Android phone over ADB. Three profiles, three intensities, one button to undo.">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101316"/>
+      <stop offset="0.55" stop-color="#15191d"/>
+      <stop offset="1" stop-color="#0d1a16"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5fc98a"/>
+      <stop offset="1" stop-color="#6fb3ff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="340" rx="14" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1200" height="4" rx="2" fill="url(#accent)"/>
+
+  <!-- phone outline -->
+  <g transform="translate(92 74)" fill="none" stroke="#2f3740" stroke-width="2.5">
+    <rect x="0" y="0" width="108" height="196" rx="16"/>
+    <rect x="38" y="8" width="32" height="5" rx="2.5" fill="#2f3740" stroke="none"/>
+  </g>
+  <!-- icons being removed: faded ones, and the kept ones solid -->
+  <g transform="translate(92 74)">
+    <rect x="16" y="34" width="24" height="24" rx="6" fill="#5fc98a" opacity="0.95"/>
+    <rect x="50" y="34" width="24" height="24" rx="6" fill="#6fb3ff" opacity="0.95"/>
+    <rect x="16" y="68" width="24" height="24" rx="6" fill="#3a434d" opacity="0.5"/>
+    <rect x="50" y="68" width="24" height="24" rx="6" fill="#3a434d" opacity="0.35"/>
+    <rect x="16" y="102" width="24" height="24" rx="6" fill="#3a434d" opacity="0.22"/>
+    <rect x="50" y="102" width="24" height="24" rx="6" fill="#3a434d" opacity="0.14"/>
+    <rect x="16" y="160" width="58" height="22" rx="7" fill="#1e2429"/>
+    <text x="45" y="175" font-family="ui-sans-serif, system-ui, Segoe UI, Roboto, sans-serif" font-size="11" fill="#7f8792" text-anchor="middle">undo</text>
+  </g>
+
+  <text x="250" y="120" font-family="ui-sans-serif, system-ui, Segoe UI, Roboto, sans-serif" font-size="52" font-weight="700" fill="#eef1f4" letter-spacing="-1.2">Free My Android</text>
+  <text x="252" y="162" font-family="ui-sans-serif, system-ui, Segoe UI, Roboto, sans-serif" font-size="21" fill="#9aa2ab">Debloat an Android phone over ADB, from your computer.</text>
+  <text x="252" y="192" font-family="ui-sans-serif, system-ui, Segoe UI, Roboto, sans-serif" font-size="21" fill="#9aa2ab">Three profiles, three intensities, one button to undo.</text>
+
+  <g font-family="ui-sans-serif, system-ui, Segoe UI, Roboto, sans-serif" font-size="13" fill="#c6cdd4">
+    <g transform="translate(252 226)">
+      <rect x="0" y="0" width="118" height="30" rx="15" fill="#1b2228" stroke="#2f3740"/>
+      <text x="59" y="20" text-anchor="middle">No root</text>
+    </g>
+    <g transform="translate(380 226)">
+      <rect x="0" y="0" width="186" height="30" rx="15" fill="#1b2228" stroke="#2f3740"/>
+      <text x="93" y="20" text-anchor="middle">Nothing uninstalled</text>
+    </g>
+    <g transform="translate(576 226)">
+      <rect x="0" y="0" width="176" height="30" rx="15" fill="#1b2228" stroke="#2f3740"/>
+      <text x="88" y="20" text-anchor="middle">No dependencies</text>
+    </g>
+    <g transform="translate(762 226)">
+      <rect x="0" y="0" width="150" height="30" rx="15" fill="#1b2228" stroke="#2f3740"/>
+      <text x="75" y="20" text-anchor="middle">TUI and web UI</text>
+    </g>
+  </g>
+
+  <text x="252" y="292" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#5fc98a">209 curated packages</text>
+  <text x="430" y="292" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#6b747e">·</text>
+  <text x="448" y="292" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#6fb3ff">4 guards</text>
+  <text x="528" y="292" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#6b747e">·</text>
+  <text x="546" y="292" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#e8c268">undo journal</text>
+  <text x="664" y="292" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#6b747e">·</text>
+  <text x="682" y="292" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#9aa2ab">MIT</text>
+</svg>

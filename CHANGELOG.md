@@ -47,8 +47,8 @@ A same-day fix release, because 1.0.0 shipped with failing CI.
 
 ## 1.0.0 — 2026-11-08
 
-First release. Verified against a Samsung Galaxy M21 (Android 12, API 31) and
-a OnePlus Android TV (Android 11, API 30).
+First release. Verified against a Samsung Galaxy M21 (Android 12, API 31).
+See `docs/tested-devices/` for the full before-and-after report.
 
 ### The engine
 

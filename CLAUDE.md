@@ -198,9 +198,9 @@ ctx.guard(ctx.current_launcher)     # -> "this is the current home screen"
 
 ## Things that are deliberately missing
 
-- **A launcher of our own.** Free My TV ships one because a TV has nowhere
-  else to go. A phone has 22 good open-source launchers; we install one of
-  those instead.
+- **A launcher of our own.** There are 22 good open-source launchers already,
+  with measured memory figures in `data/apps.json` to choose between them. We
+  install one and make it the default instead of writing a 23rd.
 - **Shizuku or an on-device app.** This is a terminal tool. Canta already does
   the on-device job well and we link to it.
 - **A generic shell escape hatch.** See above.

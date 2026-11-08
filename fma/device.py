@@ -82,8 +82,11 @@ class Profile:
         w: list[str] = []
         if self.is_tv:
             w.append(
-                "This is an Android TV, not a phone. Free My Android's profiles "
-                "assume a phone; for a TV use Free My TV instead.")
+                "This is an Android TV, not a phone. The profiles here assume "
+                "a phone: they reason about a dialer, an SMS app and a "
+                "payment app, none of which a television has, and the package "
+                "lists were written for phones. Use a tool built for "
+                "televisions instead.")
         if self.is_watch:
             w.append("This is a watch. Nothing here has been tested on one.")
         if self.sdk and self.sdk < 26:

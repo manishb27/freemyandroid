@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="600" viewBox="0 0 1100 600" role="img" aria-label="Terminal output of ./freemyandroid plan fast extreme, showing 70 proposed changes and three packages left alone by the guards.">
+  <rect width="1100" height="600" rx="12" fill="#101316"/>
+  <rect x="0" y="0" width="1100" height="40" rx="12" fill="#1a1f24"/>
+  <rect x="0" y="28" width="1100" height="12" fill="#1a1f24"/>
+  <circle cx="24" cy="20" r="6" fill="#f0776a"/>
+  <circle cx="46" cy="20" r="6" fill="#e8c268"/>
+  <circle cx="68" cy="20" r="6" fill="#5fc98a"/>
+  <text x="550" y="25" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" fill="#7f8792" text-anchor="middle">free-my-android — plan</text>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14.5">
+    <text x="26" y="78" fill="#5fc98a">$</text>
+    <text x="46" y="78" fill="#eef1f4">./freemyandroid plan fast extreme</text>
+
+    <text x="26" y="108" fill="#6fb3ff">Fast — Extreme on Samsung SM-M215F</text>
+    <text x="26" y="130" fill="#9aa2ab">70 changes, 3 left alone</text>
+
+    <text x="26" y="166" fill="#5fc98a">  safe    </text><text x="146" y="166" fill="#d7dce1">Turn off  Netflix (preload)</text>
+    <text x="26" y="188" fill="#5fc98a">  safe    </text><text x="146" y="188" fill="#d7dce1">Turn off  Facebook App Manager</text>
+    <text x="146" y="208" fill="#6b747e">          No icon. Installs and updates Facebook apps in the</text>
+    <text x="146" y="226" fill="#6b747e">          background.</text>
+    <text x="26" y="248" fill="#5fc98a">  safe    </text><text x="146" y="248" fill="#d7dce1">Turn off  MSA (ad framework, global)</text>
+    <text x="26" y="270" fill="#5fc98a">  safe    </text><text x="146" y="270" fill="#d7dce1">Turn off  Dream11</text>
+    <text x="26" y="292" fill="#5fc98a">  safe    </text><text x="146" y="292" fill="#d7dce1">Turn off  Glance</text>
+    <text x="146" y="312" fill="#6b747e">          The lock-screen ad carousel on many India-market</text>
+    <text x="146" y="330" fill="#6b747e">          phones. Downloads images constantly.</text>
+    <text x="26" y="352" fill="#e8c268">  caution </text><text x="146" y="352" fill="#d7dce1">Turn off  Galaxy Store</text>
+    <text x="146" y="372" fill="#6b747e">          Samsung's own apps update through it. Disable and</text>
+    <text x="146" y="390" fill="#6b747e">          they go stale.</text>
+    <text x="26" y="412" fill="#6b747e">  …</text>
+
+    <text x="26" y="448" fill="#9aa2ab">Left alone:</text>
+    <text x="26" y="470" fill="#f0776a">  com.phonepe.app</text>
+    <text x="246" y="470" fill="#6b747e">it is the current banking_upi:</text>
+    <text x="246" y="488" fill="#6b747e">This is the phone's payment app. Turning it off is the</text>
+    <text x="246" y="506" fill="#6b747e">kind of thing you discover at a shop counter.</text>
+    <text x="26" y="528" fill="#f0776a">  com.google.android.gms</text>
+    <text x="246" y="528" fill="#6b747e">protected: the phone needs it to boot</text>
+
+    <text x="26" y="564" fill="#5fc98a">This printed a plan and changed nothing.</text>
+  </g>
+</svg>

@@ -93,15 +93,18 @@ actually help an elderly user and are reachable over ADB but not yet done:
 Open, and the biggest product question in the repo. See the discussion in
 SERVER.md and CLAUDE.md's "deliberately missing" section. Two readings:
 
-- **An on-device debloater**, so no computer is needed at all. Requires
-  Shizuku or implementing Android 11 wireless-debugging pairing (SPAKE2 over
-  TLS-PSK) inside an app. Note that Free My TV's `Adb.java` explicitly gives
-  up here: it bails on `STLS` and tells you to use USB debugging, which works
-  on a TV where port 5555 is open and does not work on a phone.
-  [Canta](https://github.com/samolego/Canta) already does this job well.
-- **A home screen in the Free My TV style.** A phone has 22 good open-source
-  launchers and a TV has none, which is why Free My TV ships one and this does
-  not. Installing an existing launcher is the current answer.
+- **An on-device debloater**, so no computer is needed at all. The hard part
+  is privilege: an app either needs Shizuku, or has to implement Android 11
+  wireless-debugging pairing (SPAKE2 over TLS-PSK) against its own device.
+  The simple approach other projects take — connect to `127.0.0.1:5555` and
+  speak plain ADB — does not work on a phone, where that port is closed and
+  `adbd` answers `STLS` instead. [Canta](https://github.com/samolego/Canta)
+  already does this job well, which is a decent argument for not duplicating
+  it.
+- **A home screen of our own.** There are 22 good open-source launchers for
+  Android already, and the catalogue installs one and makes it the default in
+  a single step, with measured memory figures to choose by. Writing a 23rd is
+  hard to justify.
 
 Do not start either without settling which one it is.
 

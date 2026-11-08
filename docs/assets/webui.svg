@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="660" viewBox="0 0 1100 660" role="img" aria-label="The web interface: choose a phone, say how it is used, pick a profile and intensity, then review every change with its risk and reason before applying.">
+  <rect width="1100" height="660" rx="12" fill="#0f1113"/>
+
+  <!-- browser chrome -->
+  <rect x="0" y="0" width="1100" height="44" rx="12" fill="#1a1f24"/>
+  <rect x="0" y="32" width="1100" height="12" fill="#1a1f24"/>
+  <circle cx="24" cy="22" r="6" fill="#f0776a"/>
+  <circle cx="46" cy="22" r="6" fill="#e8c268"/>
+  <circle cx="68" cy="22" r="6" fill="#5fc98a"/>
+  <rect x="92" y="11" width="430" height="22" rx="11" fill="#0f1113" stroke="#2a2f35"/>
+  <text x="104" y="26" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11.5" fill="#7f8792">127.0.0.1:8777/?t=•••••••••••</text>
+
+  <!-- header -->
+  <text x="28" y="84" font-family="ui-sans-serif, system-ui, sans-serif" font-size="22" font-weight="700" fill="#e7eaed">Free My Android</text>
+  <text x="28" y="106" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12.5" fill="#959ca5">Samsung SM-M215F · Android 12 (API 31) · 371 packages, 71 already off · 3.5 GB RAM</text>
+  <line x1="28" y1="118" x2="1072" y2="118" stroke="#2a2f35"/>
+
+  <!-- step 2: mode cards -->
+  <circle cx="40" cy="146" r="11" fill="#6fb3ff"/>
+  <text x="40" y="150" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700" fill="#0f1113" text-anchor="middle">2</text>
+  <text x="60" y="151" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#e7eaed">How is this phone used?</text>
+
+  <g transform="translate(28 166)">
+    <rect x="0" y="0" width="300" height="74" rx="9" fill="#1e2226" stroke="#2a2f35"/>
+    <text x="16" y="26" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#e7eaed">Freshly reset phone</text>
+    <text x="16" y="47" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11.5" fill="#959ca5">Nothing on it anyone would miss. Every</text>
+    <text x="16" y="63" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11.5" fill="#959ca5">change pre-selected, including risky.</text>
+  </g>
+  <g transform="translate(344 166)">
+    <rect x="0" y="0" width="300" height="74" rx="9" fill="#1e2226" stroke="#6fb3ff" stroke-width="1.5"/>
+    <text x="16" y="26" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#e7eaed">Phone someone is using</text>
+    <text x="16" y="47" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11.5" fill="#959ca5">Only changes nobody notices are</text>
+    <text x="16" y="63" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11.5" fill="#959ca5">pre-selected. You tick the rest.</text>
+  </g>
+
+  <!-- step 4: review -->
+  <circle cx="40" cy="284" r="11" fill="#6fb3ff"/>
+  <text x="40" y="288" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700" fill="#0f1113" text-anchor="middle">4</text>
+  <text x="60" y="289" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#e7eaed">Review before anything changes</text>
+  <text x="28" y="312" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" fill="#959ca5">Fast — Extreme · 70 proposed: 61 safe, 7 caution, 2 risky · 61 ticked</text>
+
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+    <g transform="translate(28 326)">
+      <rect width="1044" height="40" rx="7" fill="#1e2226"/>
+      <rect x="14" y="12" width="16" height="16" rx="3" fill="#6fb3ff"/>
+      <path d="M18 20 l3.5 3.5 L27 16" stroke="#0f1113" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <text x="44" y="19" font-size="13" fill="#e7eaed">Turn off  Netflix (preload)</text>
+      <text x="44" y="33" font-size="11" fill="#959ca5">Third-party preloads and partner apps</text>
+      <rect x="958" y="12" width="52" height="17" rx="8.5" fill="none" stroke="#5fc98a"/>
+      <text x="984" y="24" font-size="9.5" fill="#5fc98a" text-anchor="middle" letter-spacing="0.6">SAFE</text>
+    </g>
+    <g transform="translate(28 370)">
+      <rect width="1044" height="40" rx="7" fill="#1e2226"/>
+      <rect x="14" y="12" width="16" height="16" rx="3" fill="#6fb3ff"/>
+      <path d="M18 20 l3.5 3.5 L27 16" stroke="#0f1113" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <text x="44" y="19" font-size="13" fill="#e7eaed">Turn off  Glance</text>
+      <text x="44" y="33" font-size="11" fill="#959ca5">The lock-screen ad carousel. Downloads images constantly.</text>
+      <rect x="958" y="12" width="52" height="17" rx="8.5" fill="none" stroke="#5fc98a"/>
+      <text x="984" y="24" font-size="9.5" fill="#5fc98a" text-anchor="middle" letter-spacing="0.6">SAFE</text>
+    </g>
+    <g transform="translate(28 414)">
+      <rect width="1044" height="40" rx="7" fill="#1e2226"/>
+      <rect x="14" y="12" width="16" height="16" rx="3" fill="#6fb3ff"/>
+      <path d="M18 20 l3.5 3.5 L27 16" stroke="#0f1113" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <text x="44" y="19" font-size="13" fill="#e7eaed">Turn off  Galaxy Store</text>
+      <text x="44" y="33" font-size="11" fill="#959ca5">Samsung's own apps update through it. Disable and they go stale.</text>
+      <rect x="944" y="12" width="66" height="17" rx="8.5" fill="none" stroke="#e8c268"/>
+      <text x="977" y="24" font-size="9.5" fill="#e8c268" text-anchor="middle" letter-spacing="0.6">CAUTION</text>
+    </g>
+    <g transform="translate(28 458)">
+      <rect width="1044" height="40" rx="7" fill="#1e2226"/>
+      <rect x="14" y="12" width="16" height="16" rx="3" fill="none" stroke="#5d656e" stroke-width="1.6"/>
+      <text x="44" y="19" font-size="13" fill="#e7eaed">Turn off  Google Play Store</text>
+      <text x="44" y="33" font-size="11" fill="#959ca5">No app updates and no new installs from Play.</text>
+      <rect x="952" y="12" width="58" height="17" rx="8.5" fill="none" stroke="#f0776a"/>
+      <text x="981" y="24" font-size="9.5" fill="#f0776a" text-anchor="middle" letter-spacing="0.6">RISKY</text>
+    </g>
+
+    <!-- guard row -->
+    <g transform="translate(28 506)">
+      <rect width="1044" height="40" rx="7" fill="#161a1d"/>
+      <text x="44" y="19" font-size="13" fill="#7f8792">com.phonepe.app</text>
+      <text x="44" y="33" font-size="11" fill="#e8c268">Kept: it is the current banking_upi — you would discover that at a shop counter</text>
+    </g>
+  </g>
+
+  <!-- apply -->
+  <g transform="translate(28 562)">
+    <rect width="240" height="34" rx="8" fill="#f0776a"/>
+    <text x="120" y="22" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="600" fill="#1a0705" text-anchor="middle">Apply the ticked changes</text>
+  </g>
+  <text x="286" y="584" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11.5" fill="#959ca5">Nothing is uninstalled. Every change is saved on this computer and can be put back from Undo.</text>
+
+  <line x1="28" y1="616" x2="1072" y2="616" stroke="#2a2f35"/>
+  <text x="28" y="638" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" fill="#5d656e">Free My Android 1.0.2 · nothing is applied until you click Apply</text>
+</svg>

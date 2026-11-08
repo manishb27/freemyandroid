@@ -1,24 +1,38 @@
 <div align="center">
 
-# Free My Android
+<img src="docs/assets/banner.svg" width="860" alt="Free My Android — debloat an Android phone over ADB. Three profiles, three intensities, one button to undo.">
 
-**Debloat an Android phone from your terminal. Three profiles, three intensities, one button to undo.**
+<br>
 
-Plug a phone in, or find it over Wi-Fi. Pick *Fast*, *Elder* or *Developer*.
-Pick how far to go. Read exactly what will change, then apply it.<br>
+[![version](https://img.shields.io/badge/version-1.0.2-6fb3ff)](CHANGELOG.md)
+[![check](https://github.com/manishb27/freemyandroid/actions/workflows/check.yml/badge.svg)](https://github.com/manishb27/freemyandroid/actions/workflows/check.yml)
+[![python](https://img.shields.io/badge/python-3.10%2B-5fc98a)](https://www.python.org/downloads/)
+[![dependencies](https://img.shields.io/badge/dependencies-none-5fc98a)](#install)
+[![licence](https://img.shields.io/badge/licence-MIT-9aa2ab)](LICENSE)
+
+**Plug a phone in, or find it over Wi-Fi. Pick *Fast*, *Elder* or *Developer*.**<br>
+Pick how far to go. Read exactly what will change, then apply it.
+
 No root. Nothing uninstalled. Nothing installed on the phone unless you ask.
 
-**v1.0.2** · Python 3.10+ · no dependencies · MIT
+[Install](#install) · [Agents](#using-this-with-claude-or-another-agent) · [Web UI](#the-web-interface) · [Safety](#safety) · [Tested devices](docs/tested-devices/) · [Changelog](CHANGELOG.md) · [adb setup](docs/ADB.md) · [Phone as a server](docs/SERVER.md) · [Roadmap](docs/ROADMAP.md)
 
-[Changelog](CHANGELOG.md) · [For AI assistants](AGENTS.md) · [adb setup](docs/ADB.md) · [Phone as a server](docs/SERVER.md) · [Roadmap](docs/ROADMAP.md)
+**Tested on a Samsung Galaxy M21** (Android 12): 71 packages disabled, 0
+failures, ~110 MB of memory freed, nothing broken.
+[Full before-and-after report →](docs/tested-devices/samsung-galaxy-m21.md)
 
 </div>
 
 ## What it is
 
-A terminal interface over `adb`. It knows 179 packages across five curated
-lists, works out which of them are on *your* phone, and refuses to touch the
-57 that would turn it into a brick.
+A tool that drives `adb` for you, with a terminal interface and a web one. It
+knows **209 packages** across five curated lists, works out which of them are
+on *your* phone, and refuses to touch the **57 packages and 16 vendor
+prefixes** that would turn it into a brick.
+
+<div align="center">
+<img src="docs/assets/terminal.svg" width="820" alt="Terminal output of ./freemyandroid plan fast extreme: 70 proposed changes, each with its risk and what breaks, and three packages the guards left alone.">
+</div>
 
 Three profiles, because "debloat my phone" means three different things:
 
@@ -82,6 +96,10 @@ a lot of home routers do.
 #   http://127.0.0.1:8777/?t=<token>
 ```
 
+<div align="center">
+<img src="docs/assets/webui.svg" width="860" alt="The web interface: pick how the phone is used, then review every proposed change with its risk and reason, with guarded packages shown greyed out and the reason they were kept.">
+</div>
+
 The terminal interface assumes whoever is driving it is also whoever decides.
 That breaks in the two situations this actually gets used in: an assistant
 doing the work while the phone's owner approves it, and someone debloating a
@@ -104,6 +122,79 @@ Bound to `127.0.0.1` and gated on a random per-run token that is printed with
 the URL, because a page that can disable apps on a phone is not something to
 expose by accident. `--lan` will bind everything, and says so loudly on
 startup.
+
+## Using this with Claude or another agent
+
+This was built to be driven by an assistant, because "which of these 371
+packages is safe to remove" is exactly the kind of question people want help
+with. [AGENTS.md](AGENTS.md) is the full guide and most coding agents read it
+automatically; [CLAUDE.md](CLAUDE.md) is the deeper one for changing the code.
+
+### Getting started
+
+Clone the repo, open your agent in the folder, and say something like:
+
+```
+I want to debloat my Android phone. This is a phone I own.
+Read AGENTS.md first, then walk me through it.
+
+My phone is a <make and model> running Android <version>.
+Developer options and USB debugging are on, and it is plugged in.
+```
+
+The agent should then: check `./freemyandroid --version`, run
+`./freemyandroid devices`, show you `./freemyandroid plan fast standard`
+output, and **not change anything** until you have read it.
+
+### Ask for the web interface
+
+If you would rather click than read a terminal, say so:
+
+```
+Start the web interface and give me the link. I want to pick what gets
+removed myself.
+```
+
+The agent runs `./freemyandroid web` in the background, reads the URL out of
+its output, and hands it to you. You tick what you want and watch progress
+stream line by line. **This is the recommended way** — the terminal interface
+is curses and cannot be driven from a script, so an agent working through a
+shell should always use the web one.
+
+### Other things worth asking for
+
+```
+What is draining my battery?                        -> ./freemyandroid battery
+Install a lighter home screen and make it default   -> the app catalogue
+Undo everything you did today                       -> the journal
+Set this phone up as a little server                -> see docs/SERVER.md
+My phone is on Wi-Fi, not USB                       -> pairing walkthrough
+I do not have adb installed                         -> ./freemyandroid adb get
+```
+
+### What the agent should never do
+
+If an assistant does any of these, stop it:
+
+- **Run `pm uninstall`.** This tool only ever disables. Uninstalling a system
+  app without root means `--user 0` removal, which a factory reset is the
+  usual way back from.
+- **Work around a guard.** If something is refused, the refusal is the
+  feature. The reason is printed; read it.
+- **Apply a plan you have not seen.** Every subcommand except the two
+  interfaces is read-only, so there is no reason to skip the review.
+- **Pick "freshly reset phone" for a phone you are using.** That pre-selects
+  the aggressive changes.
+
+### Why it is shaped for this
+
+- Everything on the command line **prints and changes nothing**, so an agent
+  can explore freely without consequences.
+- Applying requires a human click in one of the two interfaces.
+- Every change is journalled with its exact inverse, so an agent that gets
+  carried away is one Undo away from harmless.
+- Errors say what to do next rather than what went wrong, because the person
+  reading them is usually not the person who typed the command.
 
 ## Safety
 
@@ -256,13 +347,19 @@ package name and no note are the ones that go wrong.
 
 ## Status
 
-**1.0.0.** The engine, the guards, the journal, discovery, the battery report,
+**1.0.2.** The engine, the guards, the journal, discovery, the battery report,
 the catalogue, default-app switching and both interfaces work and have been
 exercised end to end against real hardware.
 
-Tested on a **Samsung Galaxy M21** (Android 12, API 31) — 70 changes applied,
-0 failures, launcher swapped and ~110 MB of memory freed — and a **OnePlus
-Y Series** Android TV (Android 11, API 30).
+| Device | Android | What was done | Report |
+|---|---|---|---|
+| Samsung Galaxy M21 (SM-M215F) | 12 (API 31) | `fast/extreme` applied, launcher swapped, 71 packages off, 0 failures | [report](docs/tested-devices/samsung-galaxy-m21.md) |
+
+That one device found **eight bugs**, every one by being run rather than by
+anyone reading the code — including a guard that could never have fired, a
+regex that silently discarded every power figure while still reporting
+success, and a catalogue entry that fetched a 2020 build. The report lists
+them, because a project that only publishes its wins is not telling you much.
 
 Not done yet, in order of how much it matters:
 
@@ -281,16 +378,15 @@ file are the two things worth attaching.
 
 ## Credit
 
-The idea, and the shape of the thing, come from
-[**Free My TV**](https://github.com/simbasjungles/free-my-tv) by
-[@simbasjungles](https://github.com/simbasjungles), which does this for
-televisions and does it beautifully. MIT, like this.
-
 [Universal Android Debloater Next Generation](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation)
 and [Canta](https://github.com/samolego/Canta) got here years earlier and are
 both excellent. If you want a GUI on your desktop or an app on the phone
-itself, use those. This exists for the terminal, for the three profiles, and
-for the undo journal.
+itself, use those. This exists for the terminal and the browser, for the three
+profiles, and for the undo journal.
+
+The package lists here were written for this project. Where a package's
+behaviour was already common knowledge in the debloating community, those two
+projects are the reason it is.
 
 ## Licence
 

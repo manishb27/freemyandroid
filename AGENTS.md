@@ -239,8 +239,9 @@ docs/ROADMAP.md        what needs doing, worst gap first
 
 ## Known limits, stated plainly
 
-- **No test suite.** Verified by hand against a Samsung Galaxy M21
-  (Android 12) and a OnePlus Android TV (Android 11).
+- **No test suite.** `tools/check.sh` covers data, guards and syntax, but
+  nothing exercises a real device. Verified by hand against a Samsung Galaxy
+  M21 (Android 12); see `docs/tested-devices/`.
 - **Windows untested.** `curses` is not in the Windows standard library, so
   the TUI needs WSL there. The **web interface works anywhere.**
 - Vendor lists cover Google/AOSP, Samsung, Xiaomi, ColorOS
