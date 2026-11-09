@@ -57,7 +57,12 @@
     "com.android.managedprovisioning",
     "com.android.proxyhandler",
     "com.android.sharedstoragebackup",
-    "com.android.storagemanager"
+    "com.android.storagemanager",
+    "com.android.providers.tv",
+    "com.oneplus.tv.remote",
+    "com.google.android.tv.remote.service",
+    "com.google.android.tv.remoteprovider",
+    "com.android.tv.settings"
   ],
   "never_disable_prefixes": [
     "com.qualcomm.",

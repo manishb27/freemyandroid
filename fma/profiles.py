@@ -137,7 +137,18 @@ def build_context(prof: device.Profile, *, quick: bool = False) -> Context:
     d = adb.Device(prof.serial)
     pkgs = load_packages()
     entries: dict[str, Entry] = {}
-    for e in pkgs.get("*", []) + pkgs.get(prof.vendor_key, []):
+
+    # A television gets the television list and nothing else. The phone lists
+    # reason about a dialer, an SMS app and a payment app, none of which a TV
+    # has, and a phone package name that happens to exist on a TV usually does
+    # something different there. Mixing them is how you end up disabling the
+    # remote control.
+    if prof.is_tv:
+        sources = pkgs.get("tv", [])
+    else:
+        sources = pkgs.get("*", []) + pkgs.get(prof.vendor_key, [])
+
+    for e in sources:
         entries[e.id] = e          # vendor list wins on a clash, by ordering
 
     ctx = Context(

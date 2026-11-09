@@ -82,11 +82,12 @@ class Profile:
         w: list[str] = []
         if self.is_tv:
             w.append(
-                "This is an Android TV, not a phone. The profiles here assume "
-                "a phone: they reason about a dialer, an SMS app and a "
-                "payment app, none of which a television has, and the package "
-                "lists were written for phones. Use a tool built for "
-                "televisions instead.")
+                "This is a television. The television package list is loaded "
+                "instead of the phone ones, and the roles that do not exist "
+                "here — dialer, SMS, payment — are skipped. Two things are "
+                "worth knowing before you start: many sets refuse to let a "
+                "third-party launcher take Home, and on some of them a "
+                "disabled remote-control service can only be undone over ADB.")
         if self.is_watch:
             w.append("This is a watch. Nothing here has been tested on one.")
         if self.sdk and self.sdk < 26:
