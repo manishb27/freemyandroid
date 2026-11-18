@@ -16,6 +16,12 @@
 - **Explain, then ask.** Most people who end up running this are being helped
   by someone else, or are following a link. Error text should say what to do
   next, not what failed.
+- **Backing up only reads.** `fma/backup.py` never changes the phone, and
+  nothing on the command line does either: `plan` prints, `backup` reads.
+  Changing a phone needs an interface where it can be confirmed.
+- **Do not invent results.** No device reports, timings or numbers that were
+  not measured. If something has not been run on real hardware, the docs and
+  the changelog say so in those words.
 
 ## The shape of it
 
@@ -31,15 +37,25 @@ fma/battery.py         dumpsys parsing and the ranking
 fma/catalog.py         fetching APKs from F-Droid and GitHub releases
 fma/tui.py             curses widgets: Screen, pick(), confirm(), busy()
 fma/app.py             the screens
-data/packages/*.json   the curated lists, 179 entries over 5 files
+fma/backup.py          survey, copy, verify: photos, files, contacts, messages
+data/packages/*.json   the curated lists: 209 entries over 5 phone files, plus
+                       androidtv.json (38) which is loaded *instead* on a TV
 data/profiles/*.json   fast, elder, dev — each with 3 intensities
-data/protected.json    the hard guard. 57 packages, 11 prefixes
-data/roles.json        19 roles: what a phone needs to still be a phone
+data/protected.json    the hard guard. 62 packages, 17 prefixes, 6 screen readers
+data/roles.json        20 roles: what a phone needs to still be a phone
 data/apps.json         32 sideloadable open-source apps
 fma/web.py             the web interface: decisions and live progress
 fma/platform_tools.py  fetching adb itself from Google, for all 3 platforms
 web/                   index.html, app.js, style.css. No framework, no build
+tools/check.sh         everything CI runs. Run this before saying "done"
+tools/fake_adb.py      a stand-in for adb, so pipelines run with no phone
+tools/test_backup.py   the backup pipeline, end to end, against the fake phone
+tools/test_web.py      loads the web page the way a browser does
+docs/BACKUP.md         the order of operations, and what to do before a reset
 ```
+
+Current version: **1.1.0** (`fma/__init__.py`). The marketing site lives in a
+separate repository, `freemyandroid-site`; `docs/` here is documentation only.
 
 ## The four guards
 
@@ -177,24 +193,68 @@ Gotchas already paid for, do not undo them:
 
 ## Testing
 
-There is no test suite yet, which is the biggest gap in the repo. Until there
-is, verify against a real device and say which one:
+```sh
+./tools/check.sh       # compile, lists, guards, journal, backup, web. All of it.
+```
+
+It must end with "All checks passed." It needs no phone: `tools/fake_adb.py`
+runs the real `find`, `stat` and copy against a folder laid out like a phone,
+and exits 99 on any adb call it does not recognise, so a new call in the code
+shows up as a failing test rather than a silent pass.
+
+Two lessons already paid for:
+
+- **Test the page, not your assumption about it.** The web interface loaded
+  unstyled in every real browser from 1.0.0 to 1.0.2, because the server
+  wanted the token on `/static/` and a browser does not send one. It had been
+  "verified" with curl with the token added by hand. `tools/test_web.py` now
+  requests each asset exactly as `index.html` names it.
+- **A fake phone proves the pipeline, not the phone.** Whether a given
+  manufacturer lets ADB read contacts or messages can only be learned on that
+  phone. The refusal path ("could not be read on this phone") exists for that
+  and is tested; it must never write an empty export and call it a success.
+
+Read-only commands, safe against any real device:
 
 ```sh
 ./freemyandroid info
 ./freemyandroid plan fast standard      # prints, changes nothing
-./freemyandroid plan fast ultra
+./freemyandroid backup --check          # only looks
 ./freemyandroid battery
-python3 -m py_compile fma/*.py freemyandroid
 ```
 
-`plan` and `battery` are read-only and safe to run against any phone. Checking
-that a guard fires is the useful test:
+Checking that a guard fires is still the useful hand test:
 
 ```python
 ctx.guard("com.android.systemui")   # -> "protected: ..."
 ctx.guard(ctx.current_launcher)     # -> "this is the current home screen"
 ```
+
+What has met real hardware: the engine, on a Samsung Galaxy M21 (Android 12),
+written up in `docs/tested-devices/`. What has not: **the backup**, and
+television support beyond detection. Say so wherever it comes up.
+
+## Backup
+
+- Saved as ordinary files under `~/FreeMyAndroid-Backups/<phone>-<serial>/`
+  (`files/` mirrors the phone, `snapshots/<date>/` holds contacts, messages,
+  calls, the app list and a manifest). `FMA_BACKUP_DIR` moves it.
+- Incremental, and verified by size: a file counts as saved only when it is
+  on this computer at the size the phone reported.
+- Email, app data, Wi-Fi passwords and authenticator codes cannot be saved by
+  anything on an unrooted phone. The interfaces say so outright, authenticator
+  codes first, because that is the one that locks people out.
+- File and folder names come from the phone and are untrusted. Anything
+  written locally goes through `_safe_join`.
+
+**Wanted next, not built:** the backup should look around the whole phone
+(other top-level folders, other apps' `Android/media` folders, loose files),
+show what it found, and let the person choose what is saved in the web and
+terminal interfaces. For an assistant: `backup --check --json`, `--only` and
+`--skip`, and an AGENTS.md step that tells it to *ask* what to save. Paths
+reaching `d.shell()` are currently wrapped in bare single quotes, which a
+folder name containing a quote would break; that needs a real quoting helper
+before discovered folder names are passed through it.
 
 ## Things that are deliberately missing
 
@@ -206,3 +266,5 @@ ctx.guard(ctx.current_launcher)     # -> "this is the current home screen"
 - **A generic shell escape hatch.** See above.
 - **The web panel.** Designed in `docs/SERVER.md`, not built. Start there if
   you are picking up that thread.
+- **Restore.** A backup can be put back by hand today (`docs/BACKUP.md`). An
+  automatic restore is on the roadmap, after the backup has met real phones.
