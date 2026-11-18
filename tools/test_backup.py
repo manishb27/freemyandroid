@@ -342,6 +342,33 @@ def main() -> int:
     assert sv.item("downloads").status == "ok"
     print("   run 9: a file that cannot be stored here is listed by name and "
           "the rest still saved")
+
+    # ---- two runs that begin in the same second must not share a snapshot.
+    # The clock is frozen rather than hoped for: on a fast machine a good run
+    # and a refused one really did land in one folder, and the refused run
+    # appeared to hold the contacts file the good run had written. This
+    # failed on GitHub's runners and never on a laptop, which is how a
+    # timing bug behaves and why it is forced here.
+    os.environ.pop("FAKE_DENY", None)
+    dest4 = backup.device_dir("Fake Phone", "FAKE0004", dest_root)
+    real_time = backup.time.time
+    frozen = real_time()
+    backup.time.time = lambda: frozen
+    try:
+        good = backup.run(d, {"name": "Fake Phone"}, backup.survey(d, dest4))
+        os.environ["FAKE_DENY"] = "contacts"
+        refused = backup.run(d, {"name": "Fake Phone"}, backup.survey(d, dest4))
+    finally:
+        backup.time.time = real_time
+        os.environ.pop("FAKE_DENY", None)
+    assert good.snapshot != refused.snapshot, "two runs wrote into one snapshot"
+    assert os.path.isfile(os.path.join(good.snapshot, "contacts.vcf")), \
+        "the fixture has no readable contacts, so this test proves nothing"
+    assert not os.path.exists(os.path.join(refused.snapshot, "contacts.vcf")), \
+        "a run that could not read contacts sits beside another run's contacts.vcf"
+    assert backup.last_backup(dest4)["_path"] == refused.snapshot, \
+        "the newest snapshot is not the one reported as the last backup"
+    print("   run 10: two runs in the same second get a snapshot each")
     return 0
 
 

@@ -111,6 +111,19 @@ That test covers the key handling. It does not walk a whole screen against a
 phone, and the review screen has still not been pressed through on real
 hardware since this fix.
 
+### Fixed: two backups in the same second shared one folder
+
+Since 1.1.0. Each run's record goes in `snapshots/<date and time>/`, and the
+name was only good to the second. Two runs that began in the same second
+wrote into one folder, so a run where the phone refused contacts could sit
+beside the previous run's `contacts.vcf` and look as if it had saved them.
+A later run now gets its own folder (`…-2`).
+
+This is the likely reason the checks had been failing on GitHub since 1.1.0
+while passing on a laptop: the job logs could not be read from here, but the
+collision is reproducible, and a fast runner is where two test runs would
+share a second. The test now freezes the clock and forces it.
+
 ## 1.1.0 — 2026-11-18
 
 ### Save your things first

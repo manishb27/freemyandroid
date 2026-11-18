@@ -906,6 +906,14 @@ def run(d: adb.Device, device_info: dict, sv: Survey, *,
     files_root = os.path.join(dest, "files")
     snap_name = time.strftime("%Y-%m-%d_%H%M%S", time.localtime(started))
     snapshot = os.path.join(dest, "snapshots", snap_name)
+    # A snapshot is one run's record and nothing else's. The name is only
+    # good to the second, and two runs that began in the same second used to
+    # share a folder: a run where the phone refused contacts would then sit
+    # beside the previous run's contacts.vcf and look as if it had saved them.
+    n = 2
+    while os.path.exists(snapshot):
+        snapshot = os.path.join(dest, "snapshots", f"{snap_name}-{n}")
+        n += 1
     os.makedirs(files_root, exist_ok=True)
     os.makedirs(snapshot, exist_ok=True)
 
