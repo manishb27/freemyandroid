@@ -142,3 +142,5 @@ footer { padding: 1.5rem 0; }
 .row.warn .state { color: var(--caution); }
 .callout { border-left: 3px solid var(--caution); background: var(--panel-2); padding: .7rem .9rem; border-radius: 0 7px 7px 0; margin: .9rem 0 .2rem; font-size: .92rem; }
 .callout:empty { display: none; }
+#backup-choose { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid var(--line); }
+.checklist input[type=checkbox]:disabled { opacity: .4; cursor: not-allowed; }

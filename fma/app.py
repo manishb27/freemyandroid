@@ -214,13 +214,15 @@ def main_menu(sc: Screen, prof: device.Profile, ctx: profiles.Context) -> None:
             rows.append(Row(text=p["name"], note=p["summary"],
                             key=("profile", p["id"])))
         rows.append(Row(text="", selectable=False))
-        last = backup.age_text(backup.last_backup(
-            backup.device_dir(prof.name, prof.serial)))
+        manifest = backup.last_backup(backup.device_dir(prof.name, prof.serial))
+        last = backup.age_text(manifest)
+        if last and not backup.was_everything(manifest):
+            last += ", only what was selected"
         rows.append(Row(
             text="Save your things first" + (f"   (last backed up {last})" if last else ""),
-            note="Copies photos, videos, contacts, messages and files to this "
-                 "computer. Nothing on the phone is changed, and a second run "
-                 "only copies what is new.",
+            note="Shows everything found on the phone and lets you choose "
+                 "what is copied to this computer. Nothing on the phone is "
+                 "changed, and a second run only copies what is new.",
             key=("backup", None)))
         rows.append(Row(text="What is draining the battery",
                         note="Reads this phone's own accounting and ranks "
@@ -456,25 +458,80 @@ def show_backup(sc: Screen, prof: device.Profile) -> None:
         sc.message("Could not look at the phone", [str(e)], bad=True)
         return
 
-    rows = [Row(text=f"{i.label:44} {i.summary}", selectable=False,
-                risk="caution" if i.status == "unreadable" else "")
-            for i in sv.items]
-    rows.append(Row(text="", selectable=False))
-    for what, why in backup.NOT_SAVED:
-        rows.append(Row(text=f"Not saved: {what}", note=why, risk="caution",
-                        selectable=False))
-    rows.append(Row(text="", selectable=False))
-    go = (f"Back up now — {backup.count_files(sv.new_files)}, "
-          f"{backup.human(sv.new_bytes)} to copy" if sv.new_files else
-          "Back up now — files are all saved; refresh contacts and messages")
-    rows.append(Row(text=go, note=f"Saved in {dest}", key="go"))
-    try:
-        if pick(sc, "Save your things first",
-                "What is on the phone, and what a backup can and cannot keep",
-                rows, [("↑↓", "move"), ("Enter", "back up"), ("Esc", "back")]) != "go":
+    # Everything that can be read starts selected: leaving something out
+    # should be a decision, not what happens to whoever presses Enter.
+    able = [i for i in sv.items if i.status != "unreadable"]
+    chosen = {i.key for i in able}
+
+    def rows_now() -> list[Row]:
+        rows: list[Row] = []
+        for i in sv.items:
+            text = f"{i.label:44} {i.summary}"
+            if i.status == "unreadable":
+                # Shown, because it is a gap the owner should know about, but
+                # there is nothing here to select.
+                rows.append(Row(text=text, risk="caution", selectable=False))
+            else:
+                rows.append(Row(
+                    text=text, checked=i.key in chosen, key=("toggle", i.key),
+                    note=i.detail or "Space or Enter leaves this out of the "
+                                     "backup, or puts it back in."))
+        rows.append(Row(text="", selectable=False))
+        for what, why in backup.NOT_SAVED:
+            rows.append(Row(text=f"Not saved: {what}", note=why, risk="caution",
+                            selectable=False))
+        rows.append(Row(text="", selectable=False))
+        picked = [i for i in able if i.key in chosen]
+        new_files = sum(i.new_files for i in picked)
+        if not picked:
+            rows.append(Row(text="Nothing is selected", selectable=False,
+                            note="Select something above to back it up."))
+        elif new_files:
+            rows.append(Row(
+                text=f"Back up what is selected — {backup.count_files(new_files)}, "
+                     f"{backup.human(sum(i.new_bytes for i in picked))} to copy",
+                note=f"Saved in {dest}", key=("go", None)))
+        else:
+            rows.append(Row(
+                text="Back up what is selected — files are all saved; "
+                     "refresh contacts and messages",
+                note=f"Saved in {dest}", key=("go", None)))
+        return rows
+
+    def on_key(k: int, idx: int):
+        rows = rows_now()
+        if k == ord(" ") and 0 <= idx < len(rows) and rows[idx].checked is not None:
+            chosen.symmetric_difference_update({rows[idx].key[1]})
+        elif k in (ord("a"), ord("A")):
+            chosen.update(i.key for i in able)
+        elif k in (ord("n"), ord("N")):
+            chosen.clear()
+        return None
+
+    # The cursor starts on the last row, "Back up what is selected", with
+    # everything selected: Enter straight away is the backup of everything it
+    # always was, and the notes on what cannot be saved are on screen above
+    # it. Choosing is one arrow key up from there.
+    at = len(rows_now()) - 1
+    while True:
+        unreadable = len(sv.items) - len(able)
+        sub = (f"{len(chosen)} of {len(able)} selected"
+               + (f" · {unreadable} could not be read" if unreadable else "")
+               + " · ↑ to see everything that was found")
+        try:
+            what, key = pick(sc, "Save your things first", sub, rows_now,
+                             [("↑↓", "move"), ("Space", "include/exclude"),
+                              ("a", "all"), ("n", "none"), ("Enter", "choose"),
+                              ("Esc", "back")],
+                             checkboxes=True, on_key=on_key, at=at)
+        except Back:
             return
-    except Back:
-        return
+        if what == "go":
+            break
+        # Enter on an item toggles it, like Space. Come back on the same row.
+        chosen.symmetric_difference_update({key})
+        at = next((n for n, r in enumerate(rows_now())
+                   if r.key == ("toggle", key)), 0)
 
     state = {"line": "Starting…"}
     log: list[tuple[str, bool]] = []
@@ -489,7 +546,7 @@ def show_backup(sc: Screen, prof: device.Profile) -> None:
     try:
         res = sc.busy(
             "Copying. Keep the phone plugged in…",
-            lambda: backup.run(d, info, sv, progress=progress,
+            lambda: backup.run(d, info, sv, progress=progress, only=chosen,
                                say=lambda text, ok=True: log.append((text, ok))))
     except backup.BackupError as e:
         sc.message("Backup did not start", [str(e)], bad=True)
@@ -502,11 +559,21 @@ def show_backup(sc: Screen, prof: device.Profile) -> None:
         return
 
     lines = [("" if ok else "! ") + text for text, ok in log]
+    # What the survey could not read was never selectable, so the run did not
+    # try it again and has said nothing about it. It is still a gap.
+    lines += [f"! {i.label} could not be read on this phone. {i.detail}"
+              for i in res.items
+              if i.status == "unreadable" and i.key not in res.chosen]
     lines += ["", f"Not saved — {backup.NOT_SAVED[0][0]}: {backup.NOT_SAVED[0][1]}",
-              "", f"Everything is in {res.dest}",
+              "", f"Everything that was copied is in {res.dest}",
               "Open 'READ ME FIRST.txt' there for how to restore."]
-    sc.message("Backup complete and checked" if res.ok else
-               "Backup finished with problems", lines, bad=not res.ok)
+    if not res.ok:
+        title = "Backup finished with problems"
+    elif res.everything:
+        title = "Backup complete and checked"
+    else:
+        title = "Backup of what was selected is complete"
+    sc.message(title, lines, bad=not res.ok)
 
 
 # --- battery ----------------------------------------------------------------

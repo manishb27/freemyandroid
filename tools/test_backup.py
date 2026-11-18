@@ -6,14 +6,19 @@ shell commands against a fixture directory. Run by tools/check.sh.
 
 What this proves: survey, copy, verify, incremental re-runs, changed files,
 SD cards, hostile file names, skipped caches, and a phone that refuses the
-contacts and messages providers.
+contacts and messages providers. Then the looking-around: folders nobody
+listed in advance, other apps' Android/media folders, loose files, folder
+names written to break a shell, and backing up a selection without it ever
+passing for a backup of everything.
 
 What it cannot prove: that a given real phone lets ADB read its contacts.
 Some do not, which is exactly why the refusal path is tested here.
 """
 
+import collections
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -62,6 +67,15 @@ def main() -> int:
         else:
             raise AssertionError("accepted " + bad_uri)
     print("   hostile paths and uris refused")
+
+    # ---- unit: quoting for the phone's shell, and keys safe to type
+    assert backup._q("/sdcard/it's") == "'/sdcard/it'\\''s'"
+    assert backup._key_part("Telegram") == "Telegram"
+    odd = backup._key_part("My 'stuff'; ls")
+    assert odd.startswith("My-stuff-ls-") and re.fullmatch(r"[A-Za-z0-9._-]+", odd), odd
+    assert backup._key_part("a b") != backup._key_part("a-b"), "two names, one key"
+    assert backup._plain("a\x1b[2Kb\u202ec") == "a?[2Kb?c"
+    print("   shell quoting, shell-safe keys, printable labels")
 
     # ---- the fake phone
     put("sdcard/DCIM/Camera/IMG_0001.jpg", b"A" * 5000)
@@ -149,6 +163,185 @@ def main() -> int:
     print("   run 4: refused providers reported as unreadable, no empty export")
 
     assert backup.age_text(backup.last_backup(dest)) == "today"
+    # Everything so far was a backup of everything, and says so.
+    assert backup.was_everything(backup.last_backup(dest)) is True
+
+    # ---- run 5: looking around the rest of the phone
+    put("sdcard/Telegram/Telegram Images/1.jpg", b"I" * 1500)
+    put("sdcard/Telegram/.thumbnails/t.jpg", b"T" * 10)
+    put("sdcard/Android/media/org.telegram.messenger/Telegram/v.mp4", b"J" * 2500)
+    put("sdcard/Android/data/com.game/files/save.dat", b"K" * 10)
+    put("sdcard/Android/obb/com.game/main.obb", b"L" * 10)
+    put("sdcard/.hidden/secret.txt", b"M" * 10)
+    put("sdcard/.nomedia", b"")
+    put("sdcard/notes.txt", b"N" * 300)
+    put("sdcard/shopping list.txt", b"O" * 40)
+    put("storage/1A2B-3C4D/Backups/old.zip", b"P" * 600)
+    os.makedirs(os.path.join(phone, "sdcard/EmptyFolder"))
+    # Folder names written to break out of a quoted shell string. If any of
+    # them is ever executed, it leaves a file called canary* in the fixture,
+    # which is where tools/fake_adb.py runs its shell.
+    hostile = ["My 'stuff'; ls", "x'; touch canary1; echo '",
+               "$(touch canary2)", "`touch canary3`", "a\"; touch canary4; \""]
+    for n, name in enumerate(hostile):
+        put(f"sdcard/{name}/it's here.txt", bytes([97 + n]) * (50 + n))
+
+    sv = backup.survey(d, dest)
+    keys = sv.keys
+    fixed = [k for k, _l, _f in backup.FILE_GROUPS]
+    assert keys[:len(fixed)] == fixed, "the familiar things come first"
+    assert sv.item("documents") is not None and sv.item("documents").files == 0, \
+        "a fixed group stays listed when empty"
+    tg = sv.item("folder:Telegram")
+    assert tg and tg.label == "Folder: Telegram" and tg.files == 1 and tg.bytes == 1500, tg
+    assert tg.new_files == 1 and tg.new_bytes == 1500 and tg.kind == "files"
+    am = sv.item("appmedia:org.telegram.messenger")
+    assert am and am.label == "Files kept by org.telegram.messenger" and am.files == 1, am
+    loose = sv.item("loose")
+    assert loose and loose.label == "Loose files in main storage"
+    assert sorted(f.rel for f in loose.remote) == ["notes.txt", "shopping list.txt"]
+    sd = sv.item("folder:Backups")
+    assert sd and sd.label == "Folder: Backups (on the SD card)" and sd.files == 1
+    assert not any("whatsapp" in k.lower() for k in keys if k != "whatsapp"), \
+        "WhatsApp's Android/media folder listed twice"
+    assert sv.item("whatsapp").files == 1
+    every = [f.path for i in sv.items for f in i.remote]
+    assert len(every) == len(set(every)), "a file is counted under two items"
+    assert not any("/Android/data/" in p or "/Android/obb/" in p for p in every)
+    assert not any("/.hidden/" in p or p.endswith("/.nomedia") or "/.thumbnails/" in p
+                   for p in every)
+    assert not any("EmptyFolder" in i.label for i in sv.items), "an empty folder was listed"
+    assert all(re.fullmatch(r"[A-Za-z0-9._:-]+", k) for k in keys), \
+        f"a key that is not safe to type in a shell: {keys}"
+    assert len(keys) == len(set(keys))
+    labels = {i.label: i for i in sv.items}
+    for n, name in enumerate(hostile):
+        item = labels.get("Folder: " + name)
+        assert item and item.files == 1 and item.bytes == 50 + n, (name, item)
+    assert sv.item("other") is None
+    print(f"   run 5: found {len(keys) - 9} more things by looking: folders, "
+          "app folders, loose files, an SD-card folder")
+
+    res = backup.run(d, {"name": "Fake Phone"}, sv)
+    assert res.ok and res.everything, [i.failed for i in res.items]
+    for n, name in enumerate(hostile):
+        with open(os.path.join(files, name, "it's here.txt"), "rb") as f:
+            assert f.read() == bytes([97 + n]) * (50 + n)
+    for rel, size in (("Telegram/Telegram Images/1.jpg", 1500),
+                      ("Android/media/org.telegram.messenger/Telegram/v.mp4", 2500),
+                      ("notes.txt", 300), ("shopping list.txt", 40),
+                      ("sd-card-1A2B-3C4D/Backups/old.zip", 600)):
+        assert os.path.getsize(os.path.join(files, rel)) == size, rel
+    assert not os.path.exists(os.path.join(files, "Android/data"))
+    assert not os.path.exists(os.path.join(files, ".hidden"))
+    stray = [x for _p, ds, fs in os.walk(phone) for x in ds + fs if x.startswith("canary")]
+    assert not stray, f"a folder name was run as a command on the phone: {stray}"
+    with open(os.path.join(res.snapshot, "manifest.json")) as f:
+        man = json.load(f)
+    assert man["everything"] is True and man["complete"] is True
+    assert sorted(man["chosen"]) == sorted(keys)
+    print(f"   run 5: all of it copied under files/, {len(hostile)} hostile "
+          "folder names copied and none of them executed")
+
+    # ---- run 6: choosing. A fresh destination, so "absent" means something.
+    dest2 = backup.device_dir("Fake Phone", "FAKE0002", dest_root)
+    files2 = os.path.join(dest2, "files")
+    sv = backup.survey(d, dest2)
+    try:
+        backup.run(d, {"name": "Fake Phone"}, sv, only={"photos", "nope"})
+    except backup.BackupError as e:
+        assert "'nope'" in str(e) and "photos" in str(e) and "folder:Telegram" in str(e), e
+    else:
+        raise AssertionError("an unknown key was accepted")
+    assert not os.path.exists(dest2), "a refused backup still wrote something"
+    assert all(i.status == "pending" for i in sv.items), "a refused backup changed the survey"
+
+    # Room is counted for what was chosen, not for the whole phone.
+    Usage = collections.namedtuple("Usage", "total used free")
+    real_usage = backup.shutil.disk_usage
+    margin = 200 * 1024 * 1024
+    backup.shutil.disk_usage = lambda _p: Usage(0, 0, margin + sv.item("photos").new_bytes + 1)
+    try:
+        try:
+            backup.run(d, {"name": "Fake Phone"}, sv)
+        except backup.BackupError as e:
+            assert "Not enough room" in str(e)
+        else:
+            raise AssertionError("everything fitted in room for the photos alone")
+        log = []
+        res = backup.run(d, {"name": "Fake Phone"}, sv, only={"photos", "contacts"},
+                         say=lambda t, ok=True: log.append((ok, t)))
+    finally:
+        backup.shutil.disk_usage = real_usage
+    assert res.ok and res.everything is False
+    assert res.chosen == ["photos", "contacts"]
+    status = {i.key: i.status for i in res.items}
+    assert status["photos"] == "ok" and status["contacts"] == "ok"
+    assert all(v == "skipped" for k, v in status.items() if k not in ("photos", "contacts")), status
+    assert res.copied_files == sv.item("photos").files
+    assert os.path.isfile(os.path.join(files2, "DCIM/Camera/IMG_0001.jpg"))
+    assert sorted(os.listdir(files2)) == ["DCIM", "Pictures", "sd-card-1A2B-3C4D"], os.listdir(files2)
+    assert os.listdir(os.path.join(files2, "sd-card-1A2B-3C4D")) == ["DCIM"]
+    assert sorted(os.listdir(res.snapshot)) == ["contacts.vcf", "manifest.json"], \
+        "something that was not chosen was exported"
+    assert sv.item("downloads").outcome == "not chosen"
+    assert sv.item("documents").outcome == "not chosen", "not chosen must not read as none found"
+    said = [t for _ok, t in log if t.startswith("Not chosen")]
+    assert len(said) == 1 and "Folder: Telegram" in said[0] and "Documents" not in said[0], said
+    with open(os.path.join(res.snapshot, "manifest.json")) as f:
+        man = json.load(f)
+    assert man["everything"] is False and man["chosen"] == ["photos", "contacts"]
+    assert man["complete"] is True
+    mstatus = {i["key"]: i["status"] for i in man["items"]}
+    assert mstatus["folder:Telegram"] == "skipped" and mstatus["photos"] == "ok"
+    assert backup.was_everything(backup.last_backup(dest2)) is False
+    with open(os.path.join(dest2, "READ ME FIRST.txt")) as f:
+        assert "chosen things only" in f.read()
+    print("   run 6: only= copies what was chosen, skips the rest, and the "
+          "manifest says it was a selection")
+
+    # ---- run 7: something that could not be read is not "not chosen"
+    os.environ["FAKE_DENY"] = "contacts"
+    sv = backup.survey(d, dest2)
+    c = sv.item("contacts")
+    assert c.status == "unreadable" and "Export" in c.detail
+    assert c.summary == "could not be read on this phone"
+    readable = [i.key for i in sv.items if i.status != "unreadable"]
+    res = backup.run(d, {"name": "Fake Phone"}, sv, only=readable)
+    assert sv.item("contacts").status == "unreadable"
+    assert sv.item("contacts").outcome == "could not be read on this phone"
+    assert res.everything is True, "leaving out what cannot be read made it a selection"
+    assert os.path.isfile(os.path.join(files2, "Telegram/Telegram Images/1.jpg"))
+    del os.environ["FAKE_DENY"]
+    print("   run 7: an unreadable item stays unreadable, never 'not chosen'")
+
+    # ---- run 8: a phone that cannot be looked around says so, out loud
+    os.environ["FAKE_DENY"] = "look"
+    sv = backup.survey(d, dest2)
+    other = sv.item("other")
+    assert other and other.status == "unreadable" and "/sdcard" in other.detail, other
+    assert other.summary == "could not be read on this phone"
+    assert sv.item("folder:Telegram") is None and sv.item("photos").files == 6
+    res = backup.run(d, {"name": "Fake Phone"}, sv)
+    assert res.ok and sv.item("other").status == "unreadable"
+    del os.environ["FAKE_DENY"]
+    print("   run 8: when looking around fails, the usual folders are still "
+          "saved and the gap is reported")
+
+    # ---- run 9: a name this computer cannot store costs one file, not the run
+    put("sdcard/Clash/inside.txt", b"Q" * 77)
+    dest3 = backup.device_dir("Fake Phone", "FAKE0003", dest_root)
+    os.makedirs(os.path.join(dest3, "files"))
+    with open(os.path.join(dest3, "files", "Clash"), "w") as f:
+        f.write("a file sitting where the folder needs to go")
+    sv = backup.survey(d, dest3)
+    res = backup.run(d, {"name": "Fake Phone"}, sv, only={"folder:Clash", "downloads"})
+    clash = sv.item("folder:Clash")
+    assert not res.ok and clash.status == "partial" and len(clash.failed) == 1, clash
+    assert clash.failed[0].startswith("Clash/inside.txt: ")
+    assert sv.item("downloads").status == "ok"
+    print("   run 9: a file that cannot be stored here is listed by name and "
+          "the rest still saved")
     return 0
 
 

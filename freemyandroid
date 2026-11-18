@@ -11,8 +11,11 @@ so the same thing can be scripted or run over SSH where curses is awkward.
     ./freemyandroid info [serial]        what kind of phone it is
     ./freemyandroid plan <profile> <standard|extreme|ultra> [serial]
     ./freemyandroid battery [serial]     what is costing power
-    ./freemyandroid backup [serial]      save photos, contacts, messages to this computer
-    ./freemyandroid backup --check       only look: what would be copied, and how much
+    ./freemyandroid backup [serial]      save photos, contacts, messages, files to this computer
+    ./freemyandroid backup --check       only look: everything found, and how much
+    ./freemyandroid backup --check --json    the same, as JSON for a program to read
+    ./freemyandroid backup --only photos,contacts    save just these
+    ./freemyandroid backup --skip downloads          save everything but these
     ./freemyandroid apps                 the app catalogue
     ./freemyandroid bundle <dir> [id…]   pre-download APKs for offline use
     ./freemyandroid adb get              download adb for this computer
@@ -205,41 +208,142 @@ def cmd_adb(argv: list[str]) -> int:
     return 2
 
 
+BACKUP_USAGE = """usage: freemyandroid backup [serial] [options]
+
+  --check            only look: list everything found on the phone and how
+                     much a backup would copy. Copies nothing.
+  --check --json     the same as one JSON object, for a program or an AI
+                     assistant to read.
+  --only KEY,KEY     back up just these. The keys are the words in [brackets]
+                     in the --check list, for example: --only photos,contacts
+  --skip KEY,KEY     back up everything except these.
+  --to DIR           put the backup in DIR instead of ~/FreeMyAndroid-Backups
+
+With neither --only nor --skip, everything that was found is backed up.
+A backup only reads the phone. Nothing on it is changed."""
+
+
 def cmd_backup(argv: list[str]) -> int:
     """Copy what matters off the phone. Reads only; the phone is not changed."""
     from fma import adb, backup, device
     check_only = False
+    as_json = False
     to = None
+    only: list[str] | None = None
+    skip: list[str] = []
     rest: list[str] = []
     i = 0
     while i < len(argv):
         a = argv[i]
         if a in ("--check", "--dry-run"):
             check_only = True; i += 1
-        elif a == "--to" and i + 1 < len(argv):
-            to = argv[i + 1]; i += 2
+        elif a == "--json":
+            as_json = True; i += 1
+        elif a in ("--to", "--only", "--skip"):
+            if i + 1 >= len(argv):
+                sys.exit(f"freemyandroid backup: {a} needs a value after it.\n\n"
+                         + BACKUP_USAGE)
+            value = argv[i + 1]; i += 2
+            if a == "--to":
+                to = value
+            else:
+                keys = [k.strip() for k in value.split(",") if k.strip()]
+                if a == "--only":
+                    only = (only or []) + keys
+                else:
+                    skip += keys
+        elif a in ("-h", "--help"):
+            print(BACKUP_USAGE)
+            return 0
+        elif a.startswith("-"):
+            # Refused, not passed on as a phone's serial number: a mistyped
+            # --only that quietly backed up something else would be worse
+            # than stopping here.
+            sys.exit(f"freemyandroid backup: unknown option {a!r}\n\n" + BACKUP_USAGE)
         else:
             rest.append(a); i += 1
 
-    serial = _one_device(rest)
-    prof = device.read(serial, deep=False)
-    d = adb.Device(serial)
-    dest = backup.device_dir(prof.name, serial, to)
+    if as_json and not check_only:
+        sys.exit("freemyandroid backup: --json only works together with "
+                 "--check. It prints what is on the phone and copies nothing; "
+                 "a backup itself reports in plain words.")
 
-    print(f"Looking at {prof.name}…")
-    sv = backup.survey(d, dest)
-    width = max(len(i.label) for i in sv.items)
+    try:
+        serial = _one_device(rest)
+        prof = device.read(serial, deep=False)
+        d = adb.Device(serial)
+        dest = backup.device_dir(prof.name, serial, to)
+        if not as_json:
+            print(f"Looking at {prof.name}…")
+        sv = backup.survey(d, dest)
+    except adb.AdbError as e:
+        if not as_json:
+            raise
+        # With --json, stdout is for the one JSON object and nothing else.
+        print(e, file=sys.stderr)
+        return 1
+
+    # Start from everything, keep only what --only names, then drop what
+    # --skip names. Both are checked against what is actually on this phone.
+    try:
+        sv.chosen((only or []) + skip)
+    except backup.BackupError as e:
+        print(e, file=sys.stderr)
+        return 2
+    choosing = only is not None or bool(skip)
+    chosen = [k for k in sv.keys
+              if (only is None or k in only) and k not in skip]
+    if not chosen:
+        print("That leaves nothing to back up. The choices are: "
+              + ", ".join(sv.keys) + ".", file=sys.stderr)
+        return 2
+    picked = [it for it in sv.items if it.key in chosen]
+    new_files = sum(it.new_files for it in picked)
+    new_bytes = sum(it.new_bytes for it in picked)
+
+    if as_json:
+        import json
+        last = backup.last_backup(dest)
+        blob = {
+            "device": {"name": prof.name, "model": prof.model,
+                       "android": prof.android, "serial": serial},
+            "dest": dest,
+            "free_bytes": backup.free_bytes(dest),
+            "last_backup": backup.age_text(last),
+            # null when there has been no backup; false when the last one
+            # was of a selection, so it is not taken for a full one.
+            "last_backup_everything": backup.was_everything(last) if last else None,
+            "new_files": new_files,
+            "new_bytes": new_bytes,
+            "items": [backup.item_dict(it) for it in sv.items],
+            "not_saved": [{"what": w, "why": y} for w, y in backup.NOT_SAVED],
+        }
+        if choosing:
+            blob["chosen"] = chosen
+        print(json.dumps(blob, indent=1))
+        return 0
+
+    width = min(max(len(it.label) for it in sv.items), 44)
     for item in sv.items:
-        print(f"  {item.label:{width}}  {item.summary}")
+        summary = item.summary
+        if choosing and item.key not in chosen and item.status != "unreadable":
+            summary += "  (not chosen)"
+        print(f"  {item.label:{width}}  {summary}  [{item.key}]")
+        if item.status == "unreadable" and item.detail:
+            print(f"  {'':{width}}  {item.detail}")
     print()
-    if sv.new_files:
-        print(f"To copy now: {sv.new_files:,} files, {backup.human(sv.new_bytes)}")
+    if new_files:
+        print(f"To copy now: {backup.count_files(new_files)}, {backup.human(new_bytes)}")
+    elif choosing:
+        print("Every chosen file is already saved on this computer.")
     else:
         print("Every file on the phone is already saved on this computer.")
     print(f"Saved in:    {dest}")
 
     if check_only:
-        print("\nThis only looked. Nothing was copied. Run it without --check to back up.")
+        print("\nThis only looked. Nothing was copied. Run it without --check to "
+              "back up everything,\nor choose with the words in [brackets]: "
+              "--only photos,contacts   or   --skip downloads")
         return 0
 
     print()
@@ -262,17 +366,26 @@ def cmd_backup(argv: list[str]) -> int:
     try:
         res = backup.run(d, {"name": prof.name, "model": prof.model,
                              "android": prof.android, "serial": serial},
-                         sv, say=say, progress=progress)
+                         sv, say=say, progress=progress,
+                         only=chosen if choosing else None)
     except backup.BackupError as e:
         print(f"\n{e}")
         return 1
 
     print()
+    # Things the survey could not read are never retried on a chosen run, so
+    # nothing above has mentioned them. They are still a gap worth a line.
+    for item in res.items:
+        if item.status == "unreadable" and item.key not in res.chosen:
+            print(f"! {item.label} could not be read on this phone. {item.detail}")
     for what, why in backup.NOT_SAVED[:1]:
         print(f"Not in this backup — {what}: {why}")
     print("The rest of what could not be saved, and why, is in 'READ ME FIRST.txt'.")
-    print(f"\n{'Backup complete.' if res.ok else 'Backup finished with problems.'} "
-          f"{res.copied_files:,} new files in {res.seconds:.0f}s.")
+    done = "Backup complete." if res.ok else "Backup finished with problems."
+    if res.ok and not res.everything:
+        done = "Backup of what was chosen is complete. It is not a backup of everything."
+    print(f"\n{done} {res.copied_files:,} new "
+          f"file{'' if res.copied_files == 1 else 's'} in {res.seconds:.0f}s.")
     print(res.dest)
     return 0 if res.ok else 1
 

@@ -254,10 +254,16 @@ print(f"   {len(cases)} action kinds")
 EOF
 
 step "backup pipeline (fake phone, no hardware needed)"
-if $PY tools/test_backup.py; then ok "survey, copy, verify, incremental, refused providers"; else bad "backup pipeline"; fi
+if $PY tools/test_backup.py; then ok "survey, copy, verify, incremental, refused providers, looking around, choosing"; else bad "backup pipeline"; fi
+
+step "backup from the command line, as an assistant runs it"
+if $PY tools/test_cli_backup.py; then ok "--check --json, --only, --skip, and the phone is only read"; else bad "backup command line"; fi
 
 step "web interface, loaded the way a browser loads it"
-if $PY tools/test_web.py; then ok "assets load as referenced, token guards the rest, one-click backup"; else bad "web interface"; fi
+if $PY tools/test_web.py; then ok "assets load as referenced, token guards the rest, one-click backup, look first and choose"; else bad "web interface"; fi
+
+step "terminal interface keys, pressed in a pseudo-terminal"
+if $PY tools/test_tui.py; then ok "Enter applies, Space ticks, Esc goes back"; else bad "terminal interface keys"; fi
 
 step "entry point"
 if ./freemyandroid --version >/dev/null 2>&1; then ok "$(./freemyandroid --version | head -1)"; else bad "--version failed"; fi

@@ -72,6 +72,11 @@ MODES = {
     },
 }
 
+# How long a look at the phone is trusted for. Past this, "Back up what is
+# ticked" looks again before copying, so photos taken since are not left
+# behind by a list that was drawn up before lunch.
+SURVEY_KEEP_SECONDS = 15 * 60
+
 
 @dataclass
 class Step:
@@ -97,6 +102,12 @@ class Session:
     # Backup: progress while it runs, and the summary once it has.
     backup_progress: dict | None = None
     backup_result: dict | None = None
+    # What "See what is on this phone first" found, kept so the owner can
+    # tick things and back up exactly what they were shown. It belongs to one
+    # phone and goes stale, so it carries whose it is and when it was taken.
+    backup_survey: backup.Survey | None = None
+    backup_survey_serial: str = ""
+    backup_survey_at: float = 0.0
 
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
 
@@ -208,12 +219,23 @@ class Api:
             if s.prof:
                 dest = backup.device_dir(s.prof.name, s.serial)
                 last = backup.last_backup(dest)
+                sv = self._kept_survey()
                 out["backup"] = {
                     "dest": dest,
                     "last": backup.age_text(last),
                     "last_complete": bool(last and last.get("complete")),
+                    # False when the last backup was of a selection, so the
+                    # page never lets "backed up today" pass for everything.
+                    "last_everything": backup.was_everything(last),
                     "progress": s.backup_progress,
                     "result": s.backup_result,
+                    "survey": None if sv is None else {
+                        "at": s.backup_survey_at,
+                        "items": [backup.item_dict(i) for i in sv.items],
+                        "new_files": sv.new_files,
+                        "new_bytes": sv.new_bytes,
+                        "free_bytes": backup.free_bytes(dest),
+                    },
                 }
             if s.plan:
                 pre = MODES[s.mode]["preselect"]
@@ -293,6 +315,10 @@ class Api:
                 self.s.plan = None
                 self.s.backup_progress = None
                 self.s.backup_result = None
+                # A list of one phone's folders must never be offered, or
+                # backed up from, against another phone.
+                self.s.backup_survey = None
+                self.s.backup_survey_serial = ""
             for w in prof.warnings:
                 self.s.say(w, ok=False)
             self.s.say("Ready.", done=True)
@@ -443,15 +469,78 @@ class Api:
                 self.s.ctx = profiles.build_context(self.s.prof)
         return {"queued": self.jobs.submit("Installing apps", work)}
 
-    def backup(self) -> dict:
-        """One click: look at the phone, copy what is new, check it, report.
+    def _kept_survey(self) -> backup.Survey | None:
+        """The stored look at the phone, if it is this phone's."""
+        s = self.s
+        with s.lock:
+            if s.backup_survey is not None and s.backup_survey_serial == s.serial:
+                return s.backup_survey
+            return None
 
-        Deliberately no options. The person pressing this should not have to
-        know what a DCIM folder is, and a second press only copies what has
-        appeared since the first.
+    def backup_look(self) -> dict:
+        """Look around the phone and report, copying nothing.
+
+        The quieter path beside the one-click button, for someone who wants
+        to see what is there — and leave some of it out — before waiting for
+        a copy. The result is kept so `backup(only=…)` copies what was shown.
         """
         if not self.s.prof:
             return {"error": "pick a phone first"}
+
+        def work() -> None:
+            s = self.s
+            s.reset_steps()
+            serial = s.serial
+            with s.lock:
+                s.backup_survey = None
+                s.backup_result = None
+                s.backup_progress = {"phase": "looking", "done": 0, "total": 0,
+                                     "bytes": 0, "total_bytes": 0}
+            try:
+                dest = backup.device_dir(s.prof.name, serial)
+                s.say("Looking at what is on the phone. Nothing on it will be "
+                      "changed, and nothing is copied yet.")
+                sv = backup.survey(adb.Device(serial), dest,
+                                   say=lambda text: s.say(text))
+            finally:
+                with s.lock:
+                    s.backup_progress = None
+            with s.lock:
+                s.backup_survey = sv
+                s.backup_survey_serial = serial
+                s.backup_survey_at = time.time()
+            s.say(f"Found {backup.count_files(sv.total_files)}, "
+                  f"{backup.human(sv.total_bytes)}, of which "
+                  f"{backup.count_files(sv.new_files)} "
+                  f"({backup.human(sv.new_bytes)}) are not saved on this "
+                  f"computer yet. Tick what you want kept.", done=True)
+        return {"queued": self.jobs.submit("Looking at the phone", work)}
+
+    def backup(self, only: list[str] | None = None) -> dict:
+        """One click: look at the phone, copy what is new, check it, report.
+
+        With no `only`, deliberately no options. The person pressing this
+        should not have to know what a DCIM folder is, and a second press
+        only copies what has appeared since the first.
+
+        With `only`, it is the second half of "see what is on this phone
+        first": the keys are the ones ticked in the list that `backup_look`
+        produced, and they are checked against that list before anything is
+        queued, so the page cannot ask for something it was never shown.
+        """
+        if not self.s.prof:
+            return {"error": "pick a phone first"}
+        kept = None
+        if only is not None:
+            if not only:
+                return {"error": "Nothing is ticked. Tick at least one thing "
+                                 "to back up."}
+            kept = self._kept_survey()
+            if kept is not None:
+                try:
+                    kept.chosen(only)
+                except backup.BackupError as e:
+                    return {"error": str(e)}
 
         def work() -> None:
             s = self.s
@@ -460,57 +549,87 @@ class Api:
                 s.backup_progress = {"phase": "looking", "done": 0, "total": 0,
                                      "bytes": 0, "total_bytes": 0}
                 s.backup_result = None
+                fresh = (kept is not None and kept is s.backup_survey
+                         and s.backup_survey_serial == s.serial
+                         and time.time() - s.backup_survey_at < SURVEY_KEEP_SECONDS)
             d = adb.Device(s.serial)
             dest = backup.device_dir(s.prof.name, s.serial)
-            s.say("Looking at what is on the phone. Nothing on it will be changed.")
-            sv = backup.survey(d, dest, say=lambda text: s.say(text))
-            if sv.new_files:
-                s.say(f"{backup.count_files(sv.new_files)} to copy, {backup.human(sv.new_bytes)}.")
-            else:
-                s.say("Every file is already saved on this computer. Refreshing "
-                      "contacts and messages.")
-
-            def progress(done: int, total: int, got: int, want: int) -> None:
-                with s.lock:
-                    s.backup_progress = {"phase": "copying", "done": done,
-                                         "total": total, "bytes": got,
-                                         "total_bytes": want}
-
+            # Whatever happens from here, the stored list is spent unless the
+            # backup refused to start: a run writes its results into it, and
+            # a list showing "2,100 new" after they were copied would be wrong.
+            keep_list = False
             try:
+                if fresh:
+                    sv = kept
+                    s.say("Backing up what was ticked. Nothing on the phone "
+                          "will be changed.")
+                else:
+                    s.say("Looking at what is on the phone. Nothing on it "
+                          "will be changed.")
+                    sv = backup.survey(d, dest, say=lambda text: s.say(text))
+                picked = sv.chosen(only)
+                new_files = sum(i.new_files for i in picked)
+                if new_files:
+                    s.say(f"{backup.count_files(new_files)} to copy, "
+                          f"{backup.human(sum(i.new_bytes for i in picked))}.")
+                elif only is None:
+                    s.say("Every file is already saved on this computer. "
+                          "Refreshing contacts and messages.")
+                else:
+                    s.say("Every file that was ticked is already saved on "
+                          "this computer.")
+
+                def progress(done: int, total: int, got: int, want: int) -> None:
+                    with s.lock:
+                        s.backup_progress = {"phase": "copying", "done": done,
+                                             "total": total, "bytes": got,
+                                             "total_bytes": want}
+
                 res = backup.run(
                     d, {"name": s.prof.name, "model": s.prof.model,
                         "android": s.prof.android, "serial": s.serial},
                     sv, say=lambda text, ok=True: s.say(text, ok=ok),
-                    progress=progress)
+                    progress=progress, only=only)
             except backup.BackupError as e:
+                # Not enough room, or a ticked folder that has since gone.
+                # Nothing was copied and the list is untouched, so it stays
+                # for the owner to untick something and try again.
+                keep_list = True
                 s.say(str(e), ok=False)
+                return
+            finally:
                 with s.lock:
                     s.backup_progress = None
-                return
+                    if not keep_list:
+                        s.backup_survey = None
+                        s.backup_survey_serial = ""
 
             with s.lock:
-                s.backup_progress = None
                 s.backup_result = {
                     "ok": res.ok,
+                    # False when something was left out by choice. The page
+                    # says so next to "saved and checked".
+                    "everything": res.everything,
                     "dest": res.dest,
                     "copied_files": res.copied_files,
                     "copied": backup.human(res.copied_bytes),
                     "seconds": round(res.seconds),
                     "items": [
-                        {"label": i.label, "status": i.status,
-                         "summary": (f"{backup.count_files(i.files)}, {backup.human(i.bytes)}"
-                                     if i.kind == "files" and i.files else
-                                     f"{i.count:,}" if i.count else
-                                     "could not be read on this phone"
-                                     if i.status == "unreadable" else "none found"),
+                        {"key": i.key, "label": i.label, "status": i.status,
+                         "summary": i.outcome,
                          "detail": i.detail, "failed": len(i.failed)}
                         for i in res.items
                     ],
                     "not_saved": [{"what": w, "why": y} for w, y in backup.NOT_SAVED],
                 }
-            s.say(("Backup complete and checked. " if res.ok else
-                   "Backup finished, but some files could not be saved. ")
-                  + f"It is in {res.dest}", ok=res.ok, done=True)
+            if not res.ok:
+                end = "Backup finished, but some files could not be saved. "
+            elif res.everything:
+                end = "Backup complete and checked. "
+            else:
+                end = ("Backup of what was ticked is complete and checked. "
+                       "It is not a backup of everything. ")
+            s.say(end + f"It is in {res.dest}", ok=res.ok, done=True)
         return {"queued": self.jobs.submit("Backing up", work)}
 
     def battery(self) -> dict:
@@ -546,6 +665,17 @@ class Api:
 
 
 # --- HTTP -------------------------------------------------------------------
+
+
+def _keys(value) -> list[str] | None:
+    """The `only` field of a backup request. Absent means everything; a list
+    means exactly those. Anything else is treated as an empty list, which is
+    refused, rather than guessed at and turned into a backup of everything."""
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        return []
+    return [str(k) for k in value]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -655,7 +785,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/install": lambda: self.api.install(
                 [str(x) for x in body.get("apps", [])]),
             "/api/battery": self.api.battery,
-            "/api/backup": self.api.backup,
+            "/api/backup": lambda: self.api.backup(_keys(body.get("only"))),
+            "/api/backup/look": self.api.backup_look,
         }
         fn = routes.get(u.path)
         if not fn:

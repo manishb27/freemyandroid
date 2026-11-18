@@ -19,7 +19,9 @@ Anything it does not recognise exits non-zero with a message, so a new adb
 call in the code shows up as a failing test instead of silently passing.
 
 Set FAKE_DENY=contacts,sms to make those providers answer "Permission
-Denial", which is what some real phones do.
+Denial", which is what some real phones do. FAKE_DENY=look makes the loop
+that lists the top of storage print nothing, as it would on a phone whose
+`stat` is too old to describe what it finds.
 """
 
 import os
@@ -99,11 +101,20 @@ def main() -> int:
                 sys.stdout.write(open(path, encoding="utf-8").read())
             return 0
 
-        if cmd.startswith(("find ", "[ -d ", "ls /storage")):
+        # `for f in '/sdcard'/*; do …` is how the backup looks around the
+        # top of storage. Like the others it is run for real, so the quoting
+        # the code sends is the quoting a shell actually has to survive.
+        if "look" in DENY and cmd.startswith("for f in "):
+            return 0
+        if cmd.startswith(("find ", "[ -d ", "ls ", "for f in ")):
             local = cmd.replace("'/sdcard", f"'{ROOT}/sdcard") \
                        .replace("'/storage", f"'{ROOT}/storage") \
                        .replace("ls /storage", f"ls {ROOT}/storage")
-            p = subprocess.run(["bash", "-c", local], capture_output=True, text=True)
+            # Run inside the fixture, so that if a hostile folder name ever
+            # did get executed, what it left behind would land where a test
+            # can see it and not in whatever directory the test started from.
+            p = subprocess.run(["bash", "-c", local], capture_output=True,
+                               text=True, cwd=ROOT)
             sys.stdout.write(p.stdout.replace(ROOT + "/sdcard", "/sdcard")
                                      .replace(ROOT + "/storage", "/storage"))
             return 0

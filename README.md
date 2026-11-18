@@ -4,7 +4,7 @@
 
 <br>
 
-[![version](https://img.shields.io/badge/version-1.1.0-6fb3ff)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.2.0-6fb3ff)](CHANGELOG.md)
 [![check](https://github.com/manishb27/freemyandroid/actions/workflows/check.yml/badge.svg)](https://github.com/manishb27/freemyandroid/actions/workflows/check.yml)
 [![python](https://img.shields.io/badge/python-3.10%2B-5fc98a)](https://www.python.org/downloads/)
 [![dependencies](https://img.shields.io/badge/dependencies-none-5fc98a)](#install)
@@ -104,6 +104,24 @@ files — photos are photos, contacts are a standard `.vcf` — and it changes
 nothing on the phone. A second run only copies what is new, and every file
 is checked against the size the phone reported.
 
+It does not stop at a list of folders written in advance. It looks around
+the phone's storage and reports everything it finds — a Telegram folder, the
+files a scanner app left behind, loose files in no folder at all — each by
+name, with its size. Then you choose:
+
+```sh
+./freemyandroid backup --check                 # look only; nothing is copied
+./freemyandroid backup --only photos,contacts  # save just these
+./freemyandroid backup --skip downloads        # save everything but these
+```
+
+In the web interface that is "See what is on this phone first": a checklist
+with everything ticked, a running total, and "Back up what is ticked". In the
+terminal interface it is the same list with Space to leave something out.
+Everything is selected to begin with, so leaving something behind is always a
+decision. A backup of a selection says so, on screen and in its own record,
+and is never reported as a backup of everything.
+
 It also tells you what it **cannot** save. Authenticator codes, email, app
 data and Wi-Fi passwords are out of reach of any backup tool on an unrooted
 phone, and it says so on screen rather than leaving a quiet gap.
@@ -167,6 +185,12 @@ The agent should then: check `./freemyandroid --version`, run
 `./freemyandroid devices`, show you `./freemyandroid plan fast standard`
 output, and **not change anything** until you have read it.
 
+Before it applies anything it should offer a backup, and it should do that
+by looking first: run `./freemyandroid backup --check --json`, tell you in
+plain words what is on the phone and how big it is, tell you what no backup
+can save, and **ask you what you want kept**. Everything is the suggestion;
+the choice is yours.
+
 ### Ask for the web interface
 
 If you would rather click than read a terminal, say so:
@@ -204,6 +228,8 @@ If an assistant does any of these, stop it:
   feature. The reason is printed; read it.
 - **Apply a plan you have not seen.** Every subcommand except the two
   interfaces is read-only, so there is no reason to skip the review.
+- **Leave something out of a backup without asking you.** Not because it is
+  big, or slow, or looks unimportant. It asks; you decide.
 - **Pick "freshly reset phone" for a phone you are using.** That pre-selects
   the aggressive changes.
 
@@ -342,7 +368,11 @@ where curses is awkward. **None of them change a phone.**
 ./freemyandroid scan                    # find phones on this network
 ./freemyandroid info                    # what kind of phone it is
 ./freemyandroid plan fast extreme       # print the plan, change nothing
-./freemyandroid backup                  # save photos, contacts, messages
+./freemyandroid backup                  # save photos, contacts, messages, files
+./freemyandroid backup --check          # only look: everything found, with sizes
+./freemyandroid backup --check --json   # the same, for a program to read
+./freemyandroid backup --only photos    # save just what you name
+./freemyandroid backup --skip downloads # save everything but what you name
 ./freemyandroid battery                 # what is costing power
 ./freemyandroid apps                    # the catalogue
 ./freemyandroid bundle ~/apks           # pre-download APKs
@@ -369,9 +399,14 @@ package name and no note are the ones that go wrong.
 
 ## Status
 
-**1.1.0.** The engine, the guards, the journal, discovery, the battery report,
+**1.2.0.** The engine, the guards, the journal, discovery, the battery report,
 the catalogue, default-app switching and both interfaces work and have been
 exercised end to end against real hardware.
+
+The backup is the exception. It has **not yet been run against a real
+phone**: it is tested on every commit against a stand-in for `adb`
+(`tools/fake_adb.py`), and nothing more. [docs/BACKUP.md](docs/BACKUP.md)
+says what that does and does not prove.
 
 | Device | Android | What was done | Report |
 |---|---|---|---|

@@ -9,6 +9,7 @@ backup:
 
   saved      photos, videos, downloads, documents, music, recordings,
              WhatsApp media and WhatsApp's own chat-backup files,
+             every other folder found in the phone's shared storage,
              contacts (as a standard .vcf), text messages, call history,
              and the list of apps the owner installed.
 
@@ -28,10 +29,18 @@ Design rules:
   * Degrades out loud. Some phones refuse the contacts or messages provider
     to ADB. That is reported as "could not be read on this phone", with what
     to do instead — never as an empty success.
+  * Looks first, and the owner chooses. `survey()` reports everything it
+    found, including folders this module has never heard of, and `run()`
+    takes `only=` so a person can leave things out. A backup of a selection
+    says so in its manifest; it must never pass for a backup of everything.
+  * Names from the phone are not trusted. Every path that reaches the phone's
+    shell goes through `_q`, every path written here through `_safe_join`,
+    and the keys people type are never the raw folder name.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -40,7 +49,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Iterable
 
 from . import adb
 
@@ -49,6 +58,10 @@ from . import adb
 # (key, plain label, folders on the phone). Paths are relative to shared
 # storage; the same list is applied to an SD card if there is one, because a
 # lot of budget phones save the camera roll there.
+#
+# These are the folders worth a plain name. Everything else in shared storage
+# is found by looking (see `survey`) and listed under the name it has on the
+# phone, so a folder this list has never heard of is still offered.
 FILE_GROUPS: list[tuple[str, str, list[str]]] = [
     ("photos", "Photos and videos", ["DCIM", "Pictures", "Movies"]),
     ("downloads", "Downloads", ["Download"]),
@@ -83,6 +96,17 @@ NOT_SAVED: list[tuple[str, str]] = [
      "them are not."),
 ]
 
+# Why a provider that refuses ADB cannot be saved, and what to do instead.
+UNREADABLE: dict[str, str] = {
+    "contacts": "This phone would not let contacts be read from a computer. "
+                "Open the Contacts app → Settings → Export, and save the "
+                ".vcf file it makes.",
+    "messages": "This phone would not let text messages be read from a "
+                "computer. An app such as SMS Backup & Restore can save them "
+                "from the phone itself.",
+    "calls": "This phone would not let call history be read from a computer.",
+}
+
 SD_CARD_RE = re.compile(r"^[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}$")
 
 
@@ -111,13 +135,17 @@ class Item:
     new_files: int = 0              # not on this computer yet
     new_bytes: int = 0
     count: int = 0                  # records, for the other kinds
-    status: str = "pending"         # ok | partial | empty | unreadable
+    status: str = "pending"         # ok | partial | empty | unreadable | skipped
     detail: str = ""
+    discovered: bool = False        # found by looking, not one of FILE_GROUPS
     failed: list[str] = field(default_factory=list)
     remote: list[RemoteFile] = field(default_factory=list, repr=False)
 
     @property
     def summary(self) -> str:
+        """What the survey found, for showing before anything is copied."""
+        if self.status == "unreadable":
+            return "could not be read on this phone"
         if self.kind == "files":
             if not self.files:
                 return "nothing found"
@@ -126,8 +154,18 @@ class Item:
                 s += (f" — {self.new_files:,} new ({human(self.new_bytes)})"
                       if self.new_files else " — all already saved")
             return s
+        return f"{self.count:,}" if self.count else "none found"
+
+    @property
+    def outcome(self) -> str:
+        """What became of it, for showing once a backup has run. "not chosen"
+        and "none found" are different facts and must not look alike."""
+        if self.status == "skipped":
+            return "not chosen"
         if self.status == "unreadable":
             return "could not be read on this phone"
+        if self.kind == "files" and self.files:
+            return f"{count_files(self.files)}, {human(self.bytes)}"
         return f"{self.count:,}" if self.count else "none found"
 
 
@@ -157,6 +195,27 @@ class Survey:
     def item(self, key: str) -> Item | None:
         return next((i for i in self.items if i.key == key), None)
 
+    @property
+    def keys(self) -> list[str]:
+        return [i.key for i in self.items]
+
+    def chosen(self, only: Iterable[str] | None) -> list[Item]:
+        """The items a person picked; all of them when `only` is None.
+
+        A key that is not in this survey is refused rather than ignored: a
+        typo that quietly backed up nothing would look like a success.
+        """
+        if only is None:
+            return list(self.items)
+        want = set(only)
+        unknown = sorted(want - set(self.keys))
+        if unknown:
+            raise BackupError(
+                "There is nothing called " + ", ".join(repr(k) for k in unknown)
+                + " to back up on this phone. The choices are: "
+                + ", ".join(self.keys) + ".")
+        return [i for i in self.items if i.key in want]
+
 
 @dataclass
 class Result:
@@ -168,9 +227,13 @@ class Result:
     copied_files: int = 0
     copied_bytes: int = 0
     failed_files: int = 0
+    chosen: list[str] = field(default_factory=list)   # keys that were asked for
+    everything: bool = True         # False when the owner left something out
 
     @property
     def ok(self) -> bool:
+        """Every file that was asked for is here. Says nothing about what was
+        not chosen; `everything` is the answer to that."""
         return self.failed_files == 0
 
     @property
@@ -209,6 +272,59 @@ def device_dir(name: str, serial: str, root: str | None = None) -> str:
     return os.path.join(root or backup_root(), f"{_slug(name)}-{_slug(serial)}")
 
 
+def free_bytes(dest: str) -> int:
+    """Room left where the backup would go. The folder may not exist yet, so
+    this asks about the nearest one above it that does."""
+    path = os.path.abspath(dest)
+    while not os.path.isdir(path):
+        parent = os.path.dirname(path)
+        if parent == path:
+            break
+        path = parent
+    try:
+        return shutil.disk_usage(path).free
+    except OSError:
+        return 0
+
+
+def _q(path: str) -> str:
+    """Quote a path for the phone's shell.
+
+    Folder and file names come from the phone, so they are input we did not
+    write. Inside single quotes a shell takes every character literally
+    except the single quote itself, so that one is closed, escaped and
+    reopened. 1.1.0 wrapped paths in quotes without doing this. It got away
+    with it because the only paths it sent were its own fixed folder names;
+    now that every folder name on the phone is sent, an apostrophe in one
+    would end the quoting early.
+
+    Every path that reaches `d.shell()` in this module goes through here.
+    """
+    return "'" + path.replace("'", "'\\''") + "'"
+
+
+def _key_part(name: str) -> str:
+    """The part of an item key that stands for a folder name.
+
+    Keys get typed after `--only`, by people and by assistants composing a
+    command line, so they must be safe to paste into a shell unquoted. A
+    plain name is used as it is. Anything else is reduced to its plain
+    characters plus a few digits of a hash of the real name, which keeps two
+    awkward names apart and gives the same key on every run.
+    """
+    if name and re.fullmatch(r"[A-Za-z0-9._-]+", name):
+        return name
+    digest = hashlib.sha1(name.encode("utf-8", "replace")).hexdigest()[:6]
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-")[:40]
+    return f"{slug}-{digest}" if slug else digest
+
+
+def _plain(name: str) -> str:
+    """A name from the phone, made safe to print: control characters and
+    invisible direction marks could rewrite a terminal line or hide text."""
+    return "".join(c if c.isprintable() else "?" for c in name)
+
+
 def _safe_join(base: str, rel: str) -> str | None:
     """Join a path that came from the phone. A file name is input we did not
     write, so a `..` in one must not be able to climb out of the backup."""
@@ -230,18 +346,23 @@ def sd_cards(d: adb.Device) -> list[str]:
     return [name for name in r.out.split() if SD_CARD_RE.match(name)]
 
 
-def list_files(d: adb.Device, root: str, rel_prefix: str) -> list[RemoteFile] | None:
+def list_files(d: adb.Device, root: str, rel_prefix: str,
+               probe: bool = True) -> list[RemoteFile] | None:
     """Every file under `root` on the phone, with size and modified time.
 
     Returns None when the folder exists but could not be listed (very old
     Android without `stat -c`), which the caller reports rather than treating
     as empty. A folder that simply is not there returns [].
+
+    `probe=False` skips asking whether the folder exists, for a folder the
+    phone has just told us about.
     """
-    probe = d.shell(f"[ -d '{root}' ] && echo yes || echo no", timeout=20)
-    if "yes" not in probe.out:
-        return []
+    if probe:
+        there = d.shell(f"[ -d {_q(root)} ] && echo yes || echo no", timeout=20)
+        if "yes" not in there.out:
+            return []
     r = d.shell(
-        f"find '{root}' -type f -exec stat -c '%s|%Y|%n' {{}} + 2>/dev/null",
+        f"find {_q(root)} -type f -exec stat -c '%s|%Y|%n' {{}} + 2>/dev/null",
         timeout=600)
     out: list[RemoteFile] = []
     for line in r.out.splitlines():
@@ -259,10 +380,55 @@ def list_files(d: adb.Device, root: str, rel_prefix: str) -> list[RemoteFile] | 
                               rel=rel))
     if not out and r.out.strip() == "":
         # Either genuinely empty, or `stat -c` is unsupported. Tell them apart.
-        any_file = d.shell(f"find '{root}' -type f 2>/dev/null | head -1", timeout=60)
+        any_file = d.shell(f"find {_q(root)} -type f 2>/dev/null | head -1", timeout=60)
         if any_file.out.strip():
             return None
     return out
+
+
+def look_around(d: adb.Device, root: str) -> tuple[list[str], list[RemoteFile]] | None:
+    """What sits directly inside `root`: folder names, and loose files.
+
+    One level only, and nothing hidden: a `*` in the phone's shell does not
+    match names that start with a dot. The shell's own tests tell folders
+    from files, and `stat -c` prints the result, which is the one thing the
+    rest of this module already depends on — so nothing here asks more of an
+    old phone than listing a folder does.
+
+    Returns None when there are things in `root` but they could not be
+    described, so the caller can say so instead of reporting nothing found.
+    The `rel` of each loose file is just its name; the caller places it.
+    """
+    q = _q(root)
+    r = d.shell(
+        f"for f in {q}/*; do "
+        f"if [ -d \"$f\" ]; then stat -c 'd|%s|%Y|%n' \"$f\"; "
+        f"elif [ -f \"$f\" ]; then stat -c 'f|%s|%Y|%n' \"$f\"; fi; "
+        f"done 2>/dev/null", timeout=120)
+    folders: list[str] = []
+    loose: list[RemoteFile] = []
+    for line in r.out.splitlines():
+        parts = line.rstrip("\r").split("|", 3)
+        if len(parts) != 4 or parts[0] not in ("d", "f") or not parts[1].isdigit():
+            continue
+        kind, size, mtime, path = parts
+        if not path.startswith(root + "/"):
+            continue
+        name = path[len(root) + 1:]
+        if not name or "/" in name or name.startswith("."):
+            continue
+        if kind == "d":
+            folders.append(name)
+        else:
+            loose.append(RemoteFile(path=path, size=int(size),
+                                    mtime=int(mtime) if mtime.isdigit() else 0,
+                                    rel=name))
+    if not folders and not loose and r.out.strip() == "":
+        # Either nothing is there, or `stat -c` is unsupported. Tell them apart.
+        anything = d.shell(f"ls {q} 2>/dev/null | head -1", timeout=60)
+        if anything.out.strip():
+            return None
+    return folders, loose
 
 
 def parse_rows(text: str, columns: list[str]) -> list[dict[str, str | None]]:
@@ -492,6 +658,33 @@ def _is_saved(dest_files: str, f: RemoteFile) -> bool:
         return False
 
 
+def _covered() -> tuple[set[str], set[str]]:
+    """What FILE_GROUPS already takes: top-level folder names, and app
+    folders under Android/media. Lower case, because a phone's shared storage
+    does not tell `Download` from `download`."""
+    top: set[str] = set()
+    media: set[str] = set()
+    for _key, _label, folders in FILE_GROUPS:
+        for folder in folders:
+            parts = folder.split("/")
+            top.add(parts[0].lower())
+            if len(parts) > 2 and parts[:2] == ["Android", "media"]:
+                media.add(parts[2].lower())
+    return top, media
+
+
+def _tally(item: Item, files_root: str, unlistable: list[str]) -> Item:
+    item.files = len(item.remote)
+    item.bytes = sum(f.size for f in item.remote)
+    new = [f for f in item.remote if not _is_saved(files_root, f)]
+    item.new_files = len(new)
+    item.new_bytes = sum(f.size for f in new)
+    if unlistable:
+        item.detail = ("Could not list " + ", ".join(_plain(u) for u in unlistable)
+                       + " on this version of Android.")
+    return item
+
+
 def survey(d: adb.Device, dest: str,
            say: Callable[[str], None] | None = None) -> Survey:
     """Look at the phone and work out what a backup would copy.
@@ -499,6 +692,12 @@ def survey(d: adb.Device, dest: str,
     Changes nothing anywhere. This is what lets the interface say "4,212
     photos and videos, 11.3 GB, about 2,100 of them new" before anyone
     commits to waiting for it.
+
+    It looks further than FILE_GROUPS: every other folder at the top of
+    shared storage, other apps' folders under Android/media, and files left
+    loose at the top each become an item of their own, so the owner is
+    choosing from what is actually on this phone rather than from a list
+    written before anyone had seen it.
     """
     say = say or (lambda _t: None)
     files_root = os.path.join(dest, "files")
@@ -519,15 +718,7 @@ def survey(d: adb.Device, dest: str,
                     unlistable.append(root)
                     continue
                 item.remote.extend(found)
-        item.files = len(item.remote)
-        item.bytes = sum(f.size for f in item.remote)
-        new = [f for f in item.remote if not _is_saved(files_root, f)]
-        item.new_files = len(new)
-        item.new_bytes = sum(f.size for f in new)
-        if unlistable:
-            item.detail = ("Could not list " + ", ".join(unlistable)
-                           + " on this version of Android.")
-        sv.items.append(item)
+        sv.items.append(_tally(item, files_root, unlistable))
 
     say("Counting contacts, messages and calls…")
     for key, label, kind, uri in (
@@ -541,6 +732,7 @@ def survey(d: adb.Device, dest: str,
             rows = None
         if rows is None:
             item.status = "unreadable"
+            item.detail = UNREADABLE[key]
         else:
             item.count = len(rows)
         sv.items.append(item)
@@ -549,7 +741,97 @@ def survey(d: adb.Device, dest: str,
     n = sum(1 for line in apps.out.splitlines() if line.startswith("package:"))
     sv.items.append(Item(key="apps", label="List of apps you installed",
                          kind="apps", count=n))
+
+    # --- everything else in shared storage
+    #
+    # Listed after the familiar things, so photos and contacts stay at the
+    # top however many folders apps have left behind. Android/data and
+    # Android/obb are deliberately not looked at: modern Android does not let
+    # ADB read them, and what is in them is app internals and game assets,
+    # not something the owner made.
+    say("Looking around the rest of the phone's storage…")
+    covered_top, covered_media = _covered()
+    found: dict[str, Item] = {}
+    unlistable: dict[str, list[str]] = {}
+    not_looked: list[str] = []
+
+    def add(key: str, label: str, root: str, rel: str) -> None:
+        item = found.setdefault(key, Item(key=key, label=label, kind="files",
+                                          discovered=True))
+        files = list_files(d, root, rel, probe=False)
+        if files is None:
+            unlistable.setdefault(key, []).append(root)
+        else:
+            item.remote.extend(files)
+
+    for store, prefix in stores:
+        where = " (on the SD card)" if prefix else ""
+        top = look_around(d, store)
+        if top is None:
+            not_looked.append(store)
+        else:
+            folders, loose = top
+            for name in sorted(folders, key=str.lower):
+                # `Android` is skipped whole here; the one part of it worth
+                # reading, Android/media, is handled just below.
+                if name.lower() == "android" or name.lower() in covered_top:
+                    continue
+                add("folder:" + _key_part(name),
+                    f"Folder: {_plain(name)}{where}",
+                    f"{store}/{name}", f"{prefix}{name}")
+            if loose:
+                key = "loose-sd" if prefix else "loose"
+                item = found.setdefault(key, Item(
+                    key=key, kind="files", discovered=True,
+                    label=("Loose files on the SD card" if prefix
+                           else "Loose files in main storage")))
+                for f in loose:
+                    f.rel = prefix + f.rel
+                    item.remote.append(f)
+        media = look_around(d, f"{store}/Android/media")
+        if media is None:
+            not_looked.append(f"{store}/Android/media")
+        else:
+            for name in sorted(media[0], key=str.lower):
+                if name.lower() in covered_media:
+                    continue        # WhatsApp: already saved under its own name
+                add("appmedia:" + _key_part(name),
+                    f"Files kept by {_plain(name)}{where}",
+                    f"{store}/Android/media/{name}",
+                    f"{prefix}Android/media/{name}")
+
+    def order(item: Item) -> tuple[int, str]:
+        rank = 0 if item.key.startswith("folder:") else \
+            1 if item.key.startswith("appmedia:") else 2
+        return rank, item.label.lower()
+
+    for item in sorted(found.values(), key=order):
+        _tally(item, files_root, unlistable.get(item.key, []))
+        # An empty folder is not worth a line on someone's screen. One that
+        # is there but could not be listed is, because that is a gap.
+        if item.files or item.detail:
+            sv.items.append(item)
+
+    if not_looked:
+        sv.items.append(Item(
+            key="other", label="Other folders on the phone", kind="files",
+            status="unreadable", discovered=True,
+            detail="Could not look around " + ", ".join(not_looked)
+                   + " on this version of Android, so only the folders "
+                     "listed above were checked. If you keep things anywhere "
+                     "else on the phone, copy them off by hand."))
     return sv
+
+
+def item_dict(i: Item) -> dict:
+    """One item as plain data: what `backup --check --json` prints and what
+    the web page draws its checklist from. Labels and details can contain
+    names from the phone; they are text to show, never anything to run."""
+    return {"key": i.key, "label": i.label, "kind": i.kind,
+            "files": i.files, "bytes": i.bytes,
+            "new_files": i.new_files, "new_bytes": i.new_bytes,
+            "count": i.count, "status": i.status, "summary": i.summary,
+            "detail": i.detail, "discovered": i.discovered}
 
 
 # --- the backup itself ------------------------------------------------------
@@ -560,7 +842,12 @@ def _pull_one(d: adb.Device, f: RemoteFile, files_root: str) -> str:
     local = _safe_join(files_root, f.rel)
     if not local:
         return "unsafe file name"
-    os.makedirs(os.path.dirname(local), exist_ok=True)
+    try:
+        os.makedirs(os.path.dirname(local), exist_ok=True)
+    except OSError as e:
+        # A name this computer's disk will not take. Now that folders are
+        # found by looking, any name can turn up; it costs that one file.
+        return f"could not make a folder for it here: {e.strerror or e}"
     part = local + ".part"
     try:
         r = d.adb("pull", "-a", f.path, part, timeout=max(120.0, f.size / 200_000))
@@ -589,15 +876,30 @@ def _unlink(path: str) -> None:
 def run(d: adb.Device, device_info: dict, sv: Survey, *,
         say: Callable[[str, bool], None] | None = None,
         progress: Callable[[int, int, int, int], None] | None = None,
-        workers: int = 3) -> Result:
+        workers: int = 3,
+        only: Iterable[str] | None = None) -> Result:
     """Copy everything in the survey that is not already here, then check it.
 
     `say(text, ok)` gets one line per thing worth telling a person.
     `progress(done_files, total_files, done_bytes, total_bytes)` is called as
     files land, from worker threads, so it must be cheap and thread-safe.
+
+    `only` is the set of item keys the owner chose. Everything else is left
+    alone and recorded as "skipped" — in the result and in the manifest — so
+    a backup of a selection can never be read as a backup of everything.
+    The room check, the copying and the checking all cover the chosen items
+    and nothing else. An unknown key raises BackupError before anything is
+    written.
     """
     say = say or (lambda _t, _ok=True: None)
     progress = progress or (lambda *_a: None)
+    picked = sv.chosen(only)
+    want = {i.key for i in picked}
+    # Something the survey already could not read was never on offer, so
+    # leaving it out is not the owner's choice and does not make this a
+    # selection. It keeps saying "could not be read", which is the truth.
+    left_out = [i for i in sv.items
+                if i.key not in want and i.status != "unreadable"]
     started = time.time()
 
     dest = sv.dest
@@ -610,15 +912,22 @@ def run(d: adb.Device, device_info: dict, sv: Survey, *,
     # Room first. Running out of disk half-way through somebody's photographs
     # is the failure to prevent, not to report.
     free = shutil.disk_usage(dest).free
-    need = sv.new_bytes
+    need = sum(i.new_bytes for i in picked)
     if need + 200 * 1024 * 1024 > free:
         raise BackupError(
             f"Not enough room on this computer. The backup needs about "
             f"{human(need)} and {human(free)} is free in {dest}. Free some "
             f"space, or choose another place with FMA_BACKUP_DIR.")
 
-    todo: list[tuple[Item, RemoteFile]] = []
+    # Past this point the survey's items are written to. A survey can be
+    # looked at, chosen from and then run, so nothing above may change it.
     for item in sv.items:
+        item.failed = []
+        if item.key not in want and item.status != "unreadable":
+            item.status = "skipped"
+
+    todo: list[tuple[Item, RemoteFile]] = []
+    for item in picked:
         if item.kind != "files":
             continue
         for f in item.remote:
@@ -662,8 +971,8 @@ def run(d: adb.Device, device_info: dict, sv: Survey, *,
 
     # Verify every file the phone listed, not only the ones copied just now:
     # the claim is "this is saved", and that should be true of all of it.
-    for item in sv.items:
-        if item.kind != "files":
+    for item in picked:
+        if item.kind != "files" or item.status == "unreadable":
             continue
         missing = [f for f in item.remote if not _is_saved(files_root, f)]
         if not item.files:
@@ -679,16 +988,14 @@ def run(d: adb.Device, device_info: dict, sv: Survey, *,
 
     # --- contacts
     item = sv.item("contacts")
-    if item is not None:
+    if item is not None and item.key in want:
         try:
             rows = query(d, "content://com.android.contacts/data", CONTACT_COLUMNS)
         except adb.AdbError:
             rows = None
         if rows is None:
             item.status = "unreadable"
-            item.detail = ("This phone would not let contacts be read from a "
-                           "computer. Open the Contacts app → Settings → "
-                           "Export, and save the .vcf file it makes.")
+            item.detail = UNREADABLE["contacts"]
             say("Contacts could not be read on this phone. " + item.detail, False)
         else:
             text, n = contacts_to_vcf(rows)
@@ -702,16 +1009,14 @@ def run(d: adb.Device, device_info: dict, sv: Survey, *,
 
     # --- messages
     item = sv.item("messages")
-    if item is not None:
+    if item is not None and item.key in want:
         try:
             rows = query(d, "content://sms", SMS_COLUMNS)
         except adb.AdbError:
             rows = None
         if rows is None:
             item.status = "unreadable"
-            item.detail = ("This phone would not let text messages be read "
-                           "from a computer. An app such as SMS Backup & "
-                           "Restore can save them from the phone itself.")
+            item.detail = UNREADABLE["messages"]
             say("Text messages could not be read on this phone. " + item.detail, False)
         else:
             recs = messages_to_records(rows)
@@ -726,14 +1031,14 @@ def run(d: adb.Device, device_info: dict, sv: Survey, *,
 
     # --- calls
     item = sv.item("calls")
-    if item is not None:
+    if item is not None and item.key in want:
         try:
             rows = query(d, "content://call_log/calls", CALL_COLUMNS)
         except adb.AdbError:
             rows = None
         if rows is None:
             item.status = "unreadable"
-            item.detail = "This phone would not let call history be read from a computer."
+            item.detail = UNREADABLE["calls"]
             say("Call history could not be read on this phone.", False)
         else:
             recs = calls_to_records(rows)
@@ -748,7 +1053,7 @@ def run(d: adb.Device, device_info: dict, sv: Survey, *,
 
     # --- apps
     item = sv.item("apps")
-    if item is not None:
+    if item is not None and item.key in want:
         r = d.shell("pm list packages -3", timeout=60)
         pkgs = sorted(line[len("package:"):].strip() for line in r.out.splitlines()
                       if line.startswith("package:"))
@@ -764,11 +1069,20 @@ def run(d: adb.Device, device_info: dict, sv: Survey, *,
         else:
             item.status = "empty"
 
+    # Only the ones that had something in them: "you left out an empty
+    # folder" is noise. Their status still says "skipped" either way.
+    missed = [i.label for i in left_out if i.files or i.count]
+    if missed:
+        say("Not chosen, so not copied this time: " + ", ".join(missed) + ".",
+            True)
+
     finished = time.time()
     res = Result(dest=dest, snapshot=snapshot, items=sv.items, started=started,
                  finished=finished, copied_files=done["files"],
                  copied_bytes=done["bytes"],
-                 failed_files=sum(len(i.failed) for i in sv.items))
+                 failed_files=sum(len(i.failed) for i in picked),
+                 chosen=[i.key for i in picked],
+                 everything=not left_out)
     _write_manifest(res, device_info)
     _write_readme(res, device_info)
     return res
@@ -790,12 +1104,19 @@ def _write_manifest(res: Result, device_info: dict) -> None:
         "device": device_info,
         "started": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(res.started)),
         "finished": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(res.finished)),
+        # `complete` is about what was asked for: every chosen file is here
+        # and checked. `everything` is the other question — whether the
+        # owner left anything out — and anything reading this file to decide
+        # "is this phone backed up?" has to look at both.
         "complete": res.ok,
+        "everything": res.everything,
+        "chosen": res.chosen,
         "copied_this_run": {"files": res.copied_files, "bytes": res.copied_bytes},
         "items": [
             {"key": i.key, "label": i.label, "kind": i.kind, "status": i.status,
              "files": i.files, "bytes": i.bytes, "count": i.count,
-             "detail": i.detail, "failed": i.failed}
+             "discovered": i.discovered, "detail": i.detail,
+             "failed": i.failed}
             for i in res.items
         ],
         "not_saved": [{"what": w, "why": y} for w, y in NOT_SAVED],
@@ -815,8 +1136,9 @@ def _write_readme(res: Result, device_info: dict) -> None:
         "",
         "files/",
         "    Your photos, videos, downloads, documents, music and WhatsApp",
-        "    files, in the same folders they had on the phone. Copy a folder",
-        "    back to a phone with a cable to restore it.",
+        "    files, and any other folders that were found on the phone, in",
+        "    the same folders they had there. Copy a folder back to a phone",
+        "    with a cable to restore it.",
         "",
         "snapshots/<date>/contacts.vcf",
         "    Your contacts. On any phone: Contacts app -> Import -> choose this",
@@ -829,7 +1151,8 @@ def _write_readme(res: Result, device_info: dict) -> None:
         "    The apps you had installed, with links to install them again.",
         "",
         "snapshots/<date>/manifest.json",
-        "    Exactly what was saved, what could not be, and why.",
+        "    Exactly what was saved, what could not be, and why. If only some",
+        "    things were chosen for a backup, the rest are marked \"skipped\".",
         "",
         "NOT in this backup",
         "------------------",
@@ -838,6 +1161,17 @@ def _write_readme(res: Result, device_info: dict) -> None:
         lines.append(f"* {what}")
         for chunk in _wrap(why, 68):
             lines.append(f"    {chunk}")
+        lines.append("")
+    skipped = [i.label for i in res.items
+               if i.status == "skipped" and (i.files or i.count)]
+    if skipped:
+        when = time.strftime("%Y-%m-%d %H:%M", time.localtime(res.finished))
+        lines += ["LEFT OUT OF THE MOST RECENT BACKUP", "-" * 34,
+                  f"The backup made on {when} was of chosen things only.",
+                  "These were on the phone and were not chosen that time, so",
+                  "anything new in them since an earlier backup is not here:",
+                  ""]
+        lines += [f"* {label}" for label in skipped]
         lines.append("")
     _write(os.path.join(res.dest, "READ ME FIRST.txt"), "\n".join(lines) + "\n")
 
@@ -866,6 +1200,13 @@ def last_backup(dest: str) -> dict | None:
             blob["_path"] = os.path.join(snaps, name)
             return blob
     return None
+
+
+def was_everything(manifest: dict | None) -> bool:
+    """Whether that backup was of everything on offer, or of a selection.
+    Manifests written before 1.2.0 have no such field, and there was no way
+    to leave anything out then."""
+    return bool(manifest) and bool(manifest.get("everything", True))
 
 
 def age_text(manifest: dict | None) -> str:

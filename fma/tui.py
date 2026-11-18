@@ -290,7 +290,8 @@ def pick(sc: Screen, title: str, subtitle: str,
          rows: list[Row] | Callable[[], list[Row]],
          keys: list[tuple[str, str]],
          checkboxes: bool = False,
-         on_key: Callable[[int, int], Any] | None = None) -> Any:
+         on_key: Callable[[int, int], Any] | None = None,
+         at: int = 0) -> Any:
     """Draw a scrolling list. Returns the chosen row's `key`, or raises Back.
 
     `rows` may be a list or a callable returning one. Pass a callable whenever
@@ -299,8 +300,11 @@ def pick(sc: Screen, title: str, subtitle: str,
 
     `on_key` gets (key, index) for anything this function does not handle and
     may return a sentinel to end the loop.
+
+    `at` is the row the cursor starts on. A screen that redraws itself after
+    Enter passes the row it was on, so the cursor does not jump to the top.
     """
-    idx = 0
+    idx = max(0, at)
     top = 0
     while True:
         rows_now = rows() if callable(rows) else rows
@@ -365,9 +369,16 @@ def pick(sc: Screen, title: str, subtitle: str,
             idx = 0
         elif k == curses.KEY_END:
             idx = max(0, len(rows_now) - 1)
-        elif (k in (10, 13, curses.KEY_ENTER) and rows_now
-              and rows_now[idx].selectable):
-            return rows_now[idx].key
+        elif k in (10, 13, curses.KEY_ENTER):
+            # A screen that gives Enter its own meaning gets it first. Until
+            # 1.2.0 this function returned the highlighted row before asking,
+            # so on the review, apps and by-hand screens Enter ticked a box
+            # and the "apply" the footer promised could never be reached.
+            out = on_key(k, idx) if on_key is not None else None
+            if out is not None:
+                return out
+            if rows_now and rows_now[idx].selectable:
+                return rows_now[idx].key
         elif on_key is not None:
             out = on_key(k, idx)
             if out is not None:

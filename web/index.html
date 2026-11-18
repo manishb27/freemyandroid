@@ -45,14 +45,33 @@
   <p class="muted">
     Copies your photos, videos, contacts, messages and files to this computer.
     Nothing on the phone is changed. The first time can take a while; after
-    that it only copies what is new.
+    that it only copies what is new. One button saves everything it finds; or
+    look first, and choose.
   </p>
   <div class="actions">
     <button id="backup" class="primary">Back up everything</button>
+    <button id="backup-look" class="ghost">See what is on this phone first</button>
     <span id="backup-last" class="muted small"></span>
   </div>
   <div id="backup-bar" class="bar hidden"><i></i></div>
   <p id="backup-status" class="muted small"></p>
+  <div id="backup-choose" class="hidden">
+    <p class="muted">
+      This is everything that was found, including folders left by apps.
+      Nothing has been copied yet. Untick anything you do not want kept; what
+      stays ticked is copied and checked.
+    </p>
+    <div class="actions tight">
+      <button id="backup-all" class="ghost small">All</button>
+      <button id="backup-none" class="ghost small">None</button>
+      <span id="backup-total" class="muted small"></span>
+    </div>
+    <div id="backup-choices" class="rows checklist"></div>
+    <p id="backup-room" class="callout"></p>
+    <div class="actions">
+      <button id="backup-chosen" class="primary">Back up what is ticked</button>
+    </div>
+  </div>
   <div id="backup-result" class="hidden">
     <div id="backup-items" class="rows"></div>
     <p id="backup-warn" class="callout"></p>

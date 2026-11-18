@@ -4,6 +4,113 @@ Notable changes. Versions follow [semver](https://semver.org): the package
 lists and the JSON data formats are part of the public surface, so a breaking
 change to those is a major bump.
 
+## 1.2.0 — 2026-11-18
+
+### The backup looks around, and you choose
+
+1.1.0 copied a fixed list of folders, all or nothing. A phone does not keep
+to a list: there is a Telegram folder, whatever the scanner app left behind,
+files in no folder at all. This release looks, reports, and asks.
+
+- **It looks around the whole of the phone's storage.** As well as the
+  familiar groups, the survey now reports every other top-level folder
+  (`folder:Telegram`), other apps' folders under `Android/media`
+  (`appmedia:org.telegram.messenger`) and loose files (`loose`), each with
+  its file count and size and how much of it is new. The same on an SD card.
+  `Android/data` and `Android/obb` are not read: modern Android does not
+  allow it, and they hold app internals, not things the owner made. Hidden
+  names and empty folders are not listed.
+- **You choose what is saved, in all three front ends.** Everything is
+  selected to begin with, so leaving something out is always a decision.
+  - Web: "Back up everything" is still one click. Beside it, "See what is on
+    this phone first" shows a checklist with a running total, and "Back up
+    what is ticked".
+  - Terminal: "Save your things first" lists what was found with Space to
+    leave a line out. Enter straight away still backs up everything.
+  - Command line: `backup --only photos,contacts` and
+    `backup --skip downloads`. `backup --check` now ends each line with the
+    key to use, like `[photos]`.
+- **`backup --check --json`** prints one JSON object — the phone, where the
+  backup would go, room on this computer, every item with its key, label,
+  counts and sizes, and what cannot be saved. It is how an AI assistant looks
+  before it asks. `AGENTS.md` section 3½ is rewritten around that: look, say
+  what was found, say what cannot be saved, **ask what to keep**, back up,
+  report. An assistant must never leave something out on its own.
+- **A selection is never mistaken for everything.** Items left out are
+  recorded as `skipped` and shown as "not chosen", distinctly from "none
+  found". The manifest gains `everything` and `chosen`, and the interfaces
+  say when the last backup was only of what was chosen. Room on the computer
+  is counted for the chosen items only, and so is the checking afterwards.
+- A key that does not exist — a typo after `--only`, or a request the web
+  page was never shown — is refused with the list of valid ones, before
+  anything is copied. So is an option `backup` does not know; 1.1.0 took it
+  for a phone's serial number.
+
+**Still not run against a real phone.** No device was attached for this
+release either. Everything above is tested only against `tools/fake_adb.py`,
+a stand-in for adb that runs the real shell commands against a folder laid
+out like a phone. Looking around depends on a short loop in the phone's own
+shell, which the stand-in runs in `bash`; that has not been tried on a
+device. If a phone cannot do it, the summary says the other folders could
+not be read and the usual ones are still saved.
+
+### Fixed: paths sent to the phone's shell were not quoted properly
+
+Since 1.1.0. Paths were put into shell commands wrapped in single quotes,
+with nothing done about a single quote *inside* the path. A name containing
+one — `Mum's photos` is enough — would have ended the quoting early: the
+command fails and the folder looks empty, or the rest of the name is read by
+the phone's shell as a command.
+
+Plainly: 1.1.0 would have mis-handled a folder name with a single quote in
+it, had one ever reached that code. None could. The only paths 1.1.0 put
+into a shell command were its own fixed folder names (`DCIM`, `Download` and
+so on); the names of the folders and files *inside* those came back as
+output and were never sent. That was checked while writing this, by running
+1.1.0 against the stand-in phone with folders named to break the quoting
+placed inside `DCIM`: they were copied correctly and nothing was executed.
+So 1.1.0 was safe by accident of what it was given, not by construction, and
+looking around the phone removes the accident — every folder name on the
+phone now goes into a command.
+
+Every path that reaches the phone's shell now goes through one quoting
+function. The test phone has top-level folders named `My 'stuff'; ls`,
+`$(touch …)` and similar; they are copied like any other folder, and the
+test fails if any of them is ever executed. With the quoting fix taken out,
+it does fail.
+
+Names from the phone are also kept out of two other places. The keys typed
+after `--only` are built from letters, digits and `. _ : -` only, so a folder
+with an awkward name gets a plain key and its real name stays in the label.
+And labels have control characters replaced before they are printed.
+
+### Also
+
+- `tools/test_cli_backup.py` runs the backup command the way an assistant
+  does, and checks that the phone is byte-for-byte unchanged afterwards.
+- `tools/fake_adb.py` runs its shell inside the fixture, so anything a
+  hostile name managed to execute would be seen by the test.
+- A file whose folder cannot be created on this computer now costs that one
+  file, listed by name, instead of stopping the backup.
+
+### Fixed: Enter did not apply a plan in the terminal interface
+
+Since 1.0.0. On the review screen the footer said "Enter  apply", and Enter
+ticked or unticked the highlighted row instead. The list widget returned the
+row under the cursor before the screen's own handler was asked, so the plan
+could not be applied from the terminal interface. The same was true of
+"install selected" on the apps screen and "turn off selected" on the by-hand
+screen. The web interface was not affected.
+
+It was found by reading the code while adding the backup checklist, not by a
+user report, and nothing had caught it because nothing pressed a key.
+`tools/test_tui.py` now drives the real widget in a pseudo-terminal: Enter
+applies, Space ticks, Esc goes back. Putting the old code back makes it fail.
+
+That test covers the key handling. It does not walk a whole screen against a
+phone, and the review screen has still not been pressed through on real
+hardware since this fix.
+
 ## 1.1.0 — 2026-11-18
 
 ### Save your things first

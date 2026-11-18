@@ -11,7 +11,9 @@ page.
 So the rule here: fetch index.html, read which assets *it* asks for, and
 request each one exactly as written.
 
-Also covers the one-click backup end to end over HTTP.
+Also covers the backup end to end over HTTP: the one-click button, and the
+quieter path beside it — look at the phone first, tick what to keep, back up
+only that.
 """
 
 import json
@@ -111,6 +113,7 @@ def main() -> int:
         assert get(base + "/static/../fma/web.py")[0] in (403, 404)
         assert get(base + "/api/state")[0] == 403, "API readable without the token"
         assert post(base + "/api/backup", {}).get("__status") == 403
+        assert post(base + "/api/backup/look", {}).get("__status") == 403
         print("   API and everything else still need the token")
 
         # ---- ids the script reaches for must exist in the page
@@ -142,7 +145,101 @@ def main() -> int:
         assert post(f"{base}/api/backup?t={tok}", {}).get("queued")
         state = wait_idle(base, tok)
         assert state["backup"]["result"]["copied_files"] == 0
+        assert state["backup"]["result"]["everything"] is True
+        assert state["backup"]["last_everything"] is True
         print("   second press copies nothing new")
+
+        # ---- look first: more has appeared on the phone since
+        def put(rel: str, data: bytes) -> None:
+            p = os.path.join(phone, "sdcard", rel)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "wb") as f:
+                f.write(data)
+
+        put("DCIM/Camera/IMG_9.jpg", b"Z" * 1111)
+        put("Telegram/Telegram Images/t.jpg", b"T" * 2222)
+        put("My 'stuff'; ls/x.txt", b"S" * 333)
+        put("notes.txt", b"N" * 44)
+        dest = state["backup"]["dest"]
+        assert state["backup"]["survey"] is None
+        assert post(f"{base}/api/backup/look?t={tok}", {}).get("queued")
+        state = wait_idle(base, tok)
+        sv = state["backup"]["survey"]
+        assert sv and state["backup"]["progress"] is None and not state["error"]
+        items = {i["key"]: i for i in sv["items"]}
+        assert items["photos"]["files"] == 4 and items["photos"]["new_files"] == 1
+        assert items["folder:Telegram"]["label"] == "Folder: Telegram"
+        assert items["folder:Telegram"]["summary"].startswith("1 file, ")
+        assert items["loose"]["new_bytes"] == 44
+        assert any(i["label"] == "Folder: My 'stuff'; ls" for i in sv["items"])
+        assert all(re.fullmatch(r"[A-Za-z0-9._:-]+", k) for k in items), list(items)
+        assert sv["new_bytes"] == 1111 + 2222 + 333 + 44 and sv["new_files"] == 4
+        assert sv["free_bytes"] > 0
+        assert not os.path.exists(os.path.join(dest, "files/Telegram")), \
+            "looking copied something"
+        print(f"   look first: {len(items)} things listed with sizes, nothing copied")
+
+        # ---- a key the page was never shown is refused, and nothing starts
+        r = post(f"{base}/api/backup?t={tok}", {"only": ["photos", "nope"]})
+        assert "nope" in r.get("error", "") and not r.get("queued"), r
+        assert "folder:Telegram" in r["error"], "the error does not list the choices"
+        r = post(f"{base}/api/backup?t={tok}", {"only": []})
+        assert r.get("error") and not r.get("queued"), r
+        r = post(f"{base}/api/backup?t={tok}", {"only": "photos"})
+        assert r.get("error") and not r.get("queued"), r
+        _c, body = get(f"{base}/api/state?t={tok}")
+        assert not json.loads(body)["busy"]
+        print("   unknown or empty selections are refused before anything runs")
+
+        # ---- back up what is ticked: that, and only that
+        assert post(f"{base}/api/backup?t={tok}",
+                    {"only": ["folder:Telegram", "contacts"]}).get("queued")
+        state = wait_idle(base, tok)
+        b = state["backup"]
+        res = b["result"]
+        assert res and res["ok"] and res["everything"] is False, res
+        assert res["copied_files"] == 1
+        got = {i["key"]: i for i in res["items"]}
+        assert got["folder:Telegram"]["status"] == "ok"
+        assert got["photos"]["status"] == "skipped"
+        assert got["photos"]["summary"] == "not chosen"
+        assert got["loose"]["summary"] == "not chosen"
+        assert got["messages"]["summary"] == "not chosen"
+        assert os.path.getsize(os.path.join(dest, "files/Telegram/Telegram Images/t.jpg")) == 2222
+        assert not os.path.exists(os.path.join(dest, "files/DCIM/Camera/IMG_9.jpg"))
+        assert not os.path.exists(os.path.join(dest, "files/notes.txt"))
+        assert b["last"] == "today" and b["last_everything"] is False, \
+            "a backup of a selection is being reported as a backup of everything"
+        assert b["survey"] is None, "a spent list is still on offer"
+        print("   back up what is ticked: only that copied, the rest shown as "
+              "'not chosen', and the page knows it was a selection")
+
+        # ---- a list belongs to one phone: picking again throws it away
+        assert post(f"{base}/api/backup/look?t={tok}", {}).get("queued")
+        assert wait_idle(base, tok)["backup"]["survey"]
+        assert post(f"{base}/api/pick?t={tok}", {"serial": "FAKE0001"}).get("queued")
+        assert wait_idle(base, tok)["backup"]["survey"] is None
+        # With no list to check against, the server looks again for itself.
+        assert post(f"{base}/api/backup?t={tok}", {"only": ["nope"]}).get("queued")
+        state = wait_idle(base, tok)
+        assert state["backup"]["result"] is None
+        assert any("nope" in s["text"] and not s["ok"] for s in state["steps"])
+        assert post(f"{base}/api/backup?t={tok}", {"only": ["loose"]}).get("queued")
+        state = wait_idle(base, tok)
+        assert state["backup"]["result"]["copied_files"] == 1
+        assert os.path.getsize(os.path.join(dest, "files/notes.txt")) == 44
+        print("   picking a phone clears the list; without one the server "
+              "looks again before copying")
+
+        # ---- and the one button still means everything
+        assert post(f"{base}/api/backup?t={tok}", {}).get("queued")
+        state = wait_idle(base, tok)
+        b = state["backup"]
+        assert b["result"]["ok"] and b["result"]["everything"] is True
+        assert b["result"]["copied_files"] == 2 and b["last_everything"] is True
+        assert os.path.getsize(os.path.join(dest, "files/DCIM/Camera/IMG_9.jpg")) == 1111
+        assert os.path.getsize(os.path.join(dest, "files/My 'stuff'; ls/x.txt")) == 333
+        print("   'Back up everything' picks up all that was left out")
         return 0
     finally:
         proc.terminate()

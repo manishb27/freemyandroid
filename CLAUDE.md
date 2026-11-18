@@ -37,7 +37,7 @@ fma/battery.py         dumpsys parsing and the ranking
 fma/catalog.py         fetching APKs from F-Droid and GitHub releases
 fma/tui.py             curses widgets: Screen, pick(), confirm(), busy()
 fma/app.py             the screens
-fma/backup.py          survey, copy, verify: photos, files, contacts, messages
+fma/backup.py          look around, let the owner choose, copy, verify
 data/packages/*.json   the curated lists: 209 entries over 5 phone files, plus
                        androidtv.json (38) which is loaded *instead* on a TV
 data/profiles/*.json   fast, elder, dev — each with 3 intensities
@@ -50,11 +50,13 @@ web/                   index.html, app.js, style.css. No framework, no build
 tools/check.sh         everything CI runs. Run this before saying "done"
 tools/fake_adb.py      a stand-in for adb, so pipelines run with no phone
 tools/test_backup.py   the backup pipeline, end to end, against the fake phone
+tools/test_cli_backup.py   `backup --check --json`, `--only`, `--skip`, as an assistant runs them
 tools/test_web.py      loads the web page the way a browser does
+tools/test_tui.py      presses keys at the list widget in a pseudo-terminal
 docs/BACKUP.md         the order of operations, and what to do before a reset
 ```
 
-Current version: **1.1.0** (`fma/__init__.py`). The marketing site lives in a
+Current version: **1.2.0** (`fma/__init__.py`). The marketing site lives in a
 separate repository, `freemyandroid-site`; `docs/` here is documentation only.
 
 ## The four guards
@@ -244,17 +246,24 @@ television support beyond detection. Say so wherever it comes up.
 - Email, app data, Wi-Fi passwords and authenticator codes cannot be saved by
   anything on an unrooted phone. The interfaces say so outright, authenticator
   codes first, because that is the one that locks people out.
-- File and folder names come from the phone and are untrusted. Anything
-  written locally goes through `_safe_join`.
-
-**Wanted next, not built:** the backup should look around the whole phone
-(other top-level folders, other apps' `Android/media` folders, loose files),
-show what it found, and let the person choose what is saved in the web and
-terminal interfaces. For an assistant: `backup --check --json`, `--only` and
-`--skip`, and an AGENTS.md step that tells it to *ask* what to save. Paths
-reaching `d.shell()` are currently wrapped in bare single quotes, which a
-folder name containing a quote would break; that needs a real quoting helper
-before discovered folder names are passed through it.
+- **It looks around** (since 1.2.0). `survey()` lists the fixed groups in
+  `FILE_GROUPS` and then everything else it finds: other top-level folders
+  (`folder:<name>`), other apps' `Android/media` folders (`appmedia:<app>`)
+  and loose files (`loose`). `Android/data` and `Android/obb` are not read.
+  Hidden names and empty folders are not listed.
+- **The owner chooses.** `run(only=…)` copies, checks and counts room for the
+  chosen items alone; the rest are recorded as `skipped`, and the manifest
+  carries `everything` and `chosen`. A backup of a selection must never be
+  reported as a backup of everything, in any front end. An assistant looks
+  with `backup --check --json`, then *asks*; AGENTS.md section 3½ is the
+  procedure.
+- File and folder names come from the phone and are untrusted, three ways:
+  every path that reaches `d.shell()` goes through `_q` (1.1.0 used bare
+  single quotes, and was safe only because it sent nothing but its own fixed
+  folder names; discovered names would have broken out of them); anything
+  written locally goes through `_safe_join`; and item keys are made
+  shell-safe by `_key_part`, because people and assistants type them after
+  `--only`. Labels are for showing, never for running.
 
 ## Things that are deliberately missing
 

@@ -8,6 +8,8 @@ let state = null;
 let chosenProfile = null;
 let planChecks = {};      // index -> bool, kept across polls
 let planStamp = "";       // identity of the plan the checks belong to
+let backupChecks = {};    // item key -> bool, kept across polls
+let backupStamp = 0;      // which look at the phone the ticks belong to
 
 async function get(path) {
   const r = await fetch(path + (path.includes("?") ? "&" : "?") + "t=" + encodeURIComponent(TOKEN));
@@ -46,6 +48,7 @@ function row(what, note, risk, opts = {}) {
     const c = el("input");
     c.type = "checkbox";
     c.checked = opts.check;
+    c.disabled = !!opts.disabled;
     c.addEventListener("change", () => opts.onCheck(c.checked));
     r.appendChild(c);
   }
@@ -236,6 +239,76 @@ function renderSteps() {
   box.scrollTop = box.scrollHeight;
 }
 
+function human(n) {
+  const units = ["bytes", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return n.toFixed(i < 2 ? 0 : 1) + " " + units[i];
+}
+
+function countFiles(n) {
+  return n.toLocaleString() + (n === 1 ? " file" : " files");
+}
+
+// The list from "See what is on this phone first". Labels can hold folder
+// names that came off the phone, so they only ever go in as text.
+function renderChoices() {
+  const sv = state.backup.survey;
+  const sec = $("backup-choose");
+  if (!sv) { sec.classList.add("hidden"); return; }
+  sec.classList.remove("hidden");
+
+  if (sv.at !== backupStamp) {
+    backupStamp = sv.at;
+    backupChecks = {};
+    // Everything ticked to begin with: leaving something out should be a
+    // decision, not what happens to whoever does not read the list.
+    for (const it of sv.items) backupChecks[it.key] = it.status !== "unreadable";
+  }
+
+  const box = $("backup-choices");
+  box.textContent = "";
+  for (const it of sv.items) {
+    const cannot = it.status === "unreadable";
+    const r = row(it.label, it.detail, "", {
+      check: !cannot && !!backupChecks[it.key],
+      disabled: cannot || !!state.busy,
+      kept: cannot,
+      onCheck: (v) => { backupChecks[it.key] = v; updateBackupTotal(); },
+    });
+    if (cannot) r.classList.add("warn");
+    r.appendChild(el("span", "state", it.summary));
+    box.appendChild(r);
+  }
+  updateBackupTotal();
+}
+
+function updateBackupTotal() {
+  const sv = state.backup && state.backup.survey;
+  if (!sv) return;
+  const able = sv.items.filter((it) => it.status !== "unreadable");
+  const ticked = able.filter((it) => backupChecks[it.key]);
+  const files = ticked.reduce((n, it) => n + it.new_files, 0);
+  const bytes = ticked.reduce((n, it) => n + it.new_bytes, 0);
+  $("backup-total").textContent = `${ticked.length} of ${able.length} ticked — ` +
+    (files ? `${countFiles(files)} to copy, ${human(bytes)}` : "nothing new to copy");
+  // The server refuses a backup that will not fit. Saying so here, while the
+  // ticks can still be changed, saves pressing the button to find out.
+  const short = files && bytes + 200 * 1024 * 1024 > sv.free_bytes;
+  $("backup-room").textContent = short
+    ? `That is more than this computer has room for (${human(sv.free_bytes)} free). ` +
+      "Untick something, or free some space."
+    : "";
+  $("backup-chosen").disabled = !ticked.length || !!state.busy;
+}
+
+function setBackupChecks(on) {
+  const sv = state && state.backup && state.backup.survey;
+  if (!sv) return;
+  for (const it of sv.items) backupChecks[it.key] = on && it.status !== "unreadable";
+  renderChoices();
+}
+
 function renderBackup() {
   const b = state.backup;
   const sec = $("s-backup");
@@ -243,7 +316,9 @@ function renderBackup() {
   sec.classList.remove("hidden");
 
   $("backup-last").textContent = b.last
-    ? `Last backed up ${b.last}${b.last_complete ? "" : " (some files could not be saved)"}`
+    ? `Last backed up ${b.last}` +
+      (b.last_everything ? "" : ", but only what was chosen that time") +
+      (b.last_complete ? "" : " (some files could not be saved)")
     : "This phone has not been backed up from this computer yet.";
 
   const bar = $("backup-bar");
@@ -270,7 +345,11 @@ function renderBackup() {
     items.textContent = "";
     for (const it of res.items) {
       const bad = it.status === "unreadable" || it.status === "partial";
-      const r = row(it.label, it.detail || (it.failed ? `${it.failed} files could not be saved` : ""), "", { kept: it.status === "empty" });
+      // "skipped" is the owner's choice and "empty" is the phone's contents.
+      // Both are dimmed, and the words beside them keep them apart: the
+      // server sends "not chosen" for one and "none found" for the other.
+      const r = row(it.label, it.detail || (it.failed ? `${it.failed} files could not be saved` : ""), "",
+        { kept: it.status === "empty" || it.status === "skipped" });
       if (bad) r.classList.add("warn");
       r.appendChild(el("span", "state", (it.status === "ok" ? "✓ " : "") + it.summary));
       items.appendChild(r);
@@ -284,10 +363,16 @@ function renderBackup() {
     for (const n of rest) not.appendChild(row(n.what, n.why, "", {}));
     $("backup-where").textContent =
       `${res.ok ? "Saved and checked" : "Saved, with problems"} in ${res.dest} — ` +
-      `${res.copied_files.toLocaleString()} new files this time (${res.copied}).`;
+      `${res.copied_files.toLocaleString()} new files this time (${res.copied}).` +
+      (res.everything ? "" : " This was a backup of what was ticked, not of everything: " +
+                             "the lines marked “not chosen” were not copied this time.");
   }
+  renderChoices();
   $("backup").disabled = !!state.busy;
-  $("backup").textContent = b.last ? "Back up again" : "Back up everything";
+  $("backup-look").disabled = !!state.busy;
+  // Says "everything" both times: after a backup of a selection, a bare
+  // "Back up again" could be read as "the same selection again".
+  $("backup").textContent = b.last ? "Back up everything again" : "Back up everything";
 }
 
 function show(id, on) { $(id).classList.toggle("hidden", !on); }
@@ -337,6 +422,14 @@ async function refreshDevices() {
 $("refresh").onclick = refreshDevices;
 $("scan").onclick = () => post("/api/scan");
 $("backup").onclick = () => post("/api/backup");
+$("backup-look").onclick = () => post("/api/backup/look");
+$("backup-all").onclick = () => setBackupChecks(true);
+$("backup-none").onclick = () => setBackupChecks(false);
+$("backup-chosen").onclick = () => {
+  const only = Object.entries(backupChecks).filter(([, v]) => v).map(([k]) => k);
+  if (!only.length) return showError("Tick something first.");
+  post("/api/backup", { only });
+};
 $("battery").onclick = () => post("/api/battery");
 $("undo").onclick = () => show("s-undo", true);
 $("undo-close").onclick = () => show("s-undo", false);
