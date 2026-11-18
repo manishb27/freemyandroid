@@ -1,6 +1,6 @@
 # Free My Android — guide for AI assistants
 
-**Version 1.0.0.** MIT. Python 3.10+, standard library only, no build step.
+**Version 1.1.0.** MIT. Python 3.10+, standard library only, no build step.
 
 This file is enough to get you running. [CLAUDE.md](CLAUDE.md) is the deeper
 guide for changing the code; read it before you edit anything.
@@ -85,6 +85,23 @@ Everything on the command line is **read-only**. None of it changes a phone.
 
 Show the user the `plan` output before applying anything. It lists every
 change with its risk and what breaks, plus what the guards refused and why.
+
+## 3½. Back up before changing anything
+
+```sh
+./freemyandroid backup --check     # what would be copied, and how much
+./freemyandroid backup             # copy it. Reads only; the phone is unchanged
+```
+
+Offer this before any plan is applied, every time. Nothing in this tool
+deletes data, but the phone is usually the only copy of someone's photos.
+In the web interface it is step 3 and one button.
+
+Tell the user what a backup **cannot** save, in particular authenticator
+codes: those must be moved from inside the app, and losing them locks people
+out of accounts. If the phone is about to be reset or handed on, read
+[docs/BACKUP.md](docs/BACKUP.md) first — the Google account has to come off
+the phone before the reset, not after.
 
 ## 4. Apply — pick an interface
 
@@ -208,6 +225,7 @@ exactly when Undo matters most.
 
 ```sh
 ./tools/check.sh                           # everything CI runs. Run this.
+                                           # includes a fake phone and a browser-style page load
 ./freemyandroid plan fast standard         # read-only, safe on any phone
 ```
 
@@ -226,6 +244,7 @@ fma/device.py          what kind of phone; roles, launchers, AVF support
 fma/profiles.py        profile + intensity -> Plan. The guards live here
 fma/plan.py            Action, apply(), invert(), make_default()
 fma/journal.py         the undo record, one file per phone
+fma/backup.py          saving photos, contacts and messages off the phone
 fma/battery.py         dumpsys parsing and the ranking
 fma/catalog.py         fetching APKs from F-Droid and GitHub releases
 fma/platform_tools.py  fetching adb itself

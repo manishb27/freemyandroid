@@ -236,6 +236,60 @@ function renderSteps() {
   box.scrollTop = box.scrollHeight;
 }
 
+function renderBackup() {
+  const b = state.backup;
+  const sec = $("s-backup");
+  if (!b) { sec.classList.add("hidden"); return; }
+  sec.classList.remove("hidden");
+
+  $("backup-last").textContent = b.last
+    ? `Last backed up ${b.last}${b.last_complete ? "" : " (some files could not be saved)"}`
+    : "This phone has not been backed up from this computer yet.";
+
+  const bar = $("backup-bar");
+  const pr = b.progress;
+  if (pr) {
+    bar.classList.remove("hidden");
+    bar.classList.toggle("looking", pr.phase === "looking");
+    const pct = pr.total_bytes ? Math.round((pr.bytes / pr.total_bytes) * 100) : 0;
+    bar.firstElementChild.style.width = pr.phase === "looking" ? "" : pct + "%";
+    $("backup-status").textContent = pr.phase === "looking"
+      ? "Looking at what is on the phone…"
+      : `${pct}% — ${pr.done.toLocaleString()} of ${pr.total.toLocaleString()} files. Keep the phone plugged in.`;
+  } else {
+    bar.classList.add("hidden");
+    $("backup-status").textContent = "";
+  }
+
+  const res = b.result;
+  const box = $("backup-result");
+  if (!res) { box.classList.add("hidden"); }
+  else {
+    box.classList.remove("hidden");
+    const items = $("backup-items");
+    items.textContent = "";
+    for (const it of res.items) {
+      const bad = it.status === "unreadable" || it.status === "partial";
+      const r = row(it.label, it.detail || (it.failed ? `${it.failed} files could not be saved` : ""), "", { kept: it.status === "empty" });
+      if (bad) r.classList.add("warn");
+      r.appendChild(el("span", "state", (it.status === "ok" ? "✓ " : "") + it.summary));
+      items.appendChild(r);
+    }
+    const not = $("backup-not");
+    not.textContent = "";
+    // The first one is the one that locks people out of accounts, so it is
+    // shown outright. The rest can wait behind the disclosure.
+    const [first, ...rest] = res.not_saved;
+    $("backup-warn").textContent = first ? `Not saved — ${first.what}. ${first.why}` : "";
+    for (const n of rest) not.appendChild(row(n.what, n.why, "", {}));
+    $("backup-where").textContent =
+      `${res.ok ? "Saved and checked" : "Saved, with problems"} in ${res.dest} — ` +
+      `${res.copied_files.toLocaleString()} new files this time (${res.copied}).`;
+  }
+  $("backup").disabled = !!state.busy;
+  $("backup").textContent = b.last ? "Back up again" : "Back up everything";
+}
+
 function show(id, on) { $(id).classList.toggle("hidden", !on); }
 
 // --- polling --------------------------------------------------------------
@@ -261,6 +315,7 @@ async function refresh() {
   show("s-mode", !!d);
   show("s-what", !!d);
   if (d) renderProfiles();
+  renderBackup();
   renderPlan();
   renderJournal();
   renderSteps();
@@ -281,6 +336,7 @@ async function refreshDevices() {
 
 $("refresh").onclick = refreshDevices;
 $("scan").onclick = () => post("/api/scan");
+$("backup").onclick = () => post("/api/backup");
 $("battery").onclick = () => post("/api/battery");
 $("undo").onclick = () => show("s-undo", true);
 $("undo-close").onclick = () => show("s-undo", false);
@@ -296,6 +352,11 @@ $("apply").onclick = () => {
   let msg = `Apply ${indexes.length} changes to ${state.device.name}?\n\n` +
             "Nothing is uninstalled. Every change is saved on this computer and " +
             "can be put back from Undo.";
+  if (state.backup && !state.backup.last) {
+    msg += "\n\nYou have not backed this phone up yet. Nothing here deletes " +
+           "your photos or contacts, but a backup is one click and it is the " +
+           "step above this one.";
+  }
   if (risky.length) {
     msg += `\n\n${risky.length} of them are marked risky:\n` +
            risky.slice(0, 8).map((a) => "  • " + a.what).join("\n") +

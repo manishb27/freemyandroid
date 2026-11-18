@@ -11,6 +11,8 @@ so the same thing can be scripted or run over SSH where curses is awkward.
     ./freemyandroid info [serial]        what kind of phone it is
     ./freemyandroid plan <profile> <standard|extreme|ultra> [serial]
     ./freemyandroid battery [serial]     what is costing power
+    ./freemyandroid backup [serial]      save photos, contacts, messages to this computer
+    ./freemyandroid backup --check       only look: what would be copied, and how much
     ./freemyandroid apps                 the app catalogue
     ./freemyandroid bundle <dir> [id…]   pre-download APKs for offline use
     ./freemyandroid adb get              download adb for this computer
@@ -19,8 +21,8 @@ so the same thing can be scripted or run over SSH where curses is awkward.
     ./freemyandroid undo [serial]        list recorded runs
     ./freemyandroid --version            version, python and adb in use
 
-`plan` only ever prints. Nothing on this command line changes a phone; that
-needs the interface, where it can be confirmed.
+`plan` only ever prints, and `backup` only ever reads. Nothing on this command
+line changes a phone; that needs the interface, where it can be confirmed.
 """
 
 from __future__ import annotations
@@ -203,6 +205,78 @@ def cmd_adb(argv: list[str]) -> int:
     return 2
 
 
+def cmd_backup(argv: list[str]) -> int:
+    """Copy what matters off the phone. Reads only; the phone is not changed."""
+    from fma import adb, backup, device
+    check_only = False
+    to = None
+    rest: list[str] = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--check", "--dry-run"):
+            check_only = True; i += 1
+        elif a == "--to" and i + 1 < len(argv):
+            to = argv[i + 1]; i += 2
+        else:
+            rest.append(a); i += 1
+
+    serial = _one_device(rest)
+    prof = device.read(serial, deep=False)
+    d = adb.Device(serial)
+    dest = backup.device_dir(prof.name, serial, to)
+
+    print(f"Looking at {prof.name}…")
+    sv = backup.survey(d, dest)
+    width = max(len(i.label) for i in sv.items)
+    for item in sv.items:
+        print(f"  {item.label:{width}}  {item.summary}")
+    print()
+    if sv.new_files:
+        print(f"To copy now: {sv.new_files:,} files, {backup.human(sv.new_bytes)}")
+    else:
+        print("Every file on the phone is already saved on this computer.")
+    print(f"Saved in:    {dest}")
+
+    if check_only:
+        print("\nThis only looked. Nothing was copied. Run it without --check to back up.")
+        return 0
+
+    print()
+    last = {"t": 0.0}
+
+    def progress(done: int, total: int, got: int, want: int) -> None:
+        import time
+        now = time.time()
+        if now - last["t"] < 0.25 and done < total:
+            return
+        last["t"] = now
+        pct = (got * 100 // want) if want else 100
+        print(f"\r  {pct:3d}%  {done:,} of {total:,} files  "
+              f"{backup.human(got)} of {backup.human(want)}   ", end="", flush=True)
+
+    def say(text: str, ok: bool = True) -> None:
+        print(("\n" if last["t"] else "") + ("  " if ok else "! ") + text)
+        last["t"] = 0.0
+
+    try:
+        res = backup.run(d, {"name": prof.name, "model": prof.model,
+                             "android": prof.android, "serial": serial},
+                         sv, say=say, progress=progress)
+    except backup.BackupError as e:
+        print(f"\n{e}")
+        return 1
+
+    print()
+    for what, why in backup.NOT_SAVED[:1]:
+        print(f"Not in this backup — {what}: {why}")
+    print("The rest of what could not be saved, and why, is in 'READ ME FIRST.txt'.")
+    print(f"\n{'Backup complete.' if res.ok else 'Backup finished with problems.'} "
+          f"{res.copied_files:,} new files in {res.seconds:.0f}s.")
+    print(res.dest)
+    return 0 if res.ok else 1
+
+
 def cmd_web(argv: list[str]) -> int:
     """Start the web interface: decisions and live progress in a browser."""
     from fma import web
@@ -248,6 +322,7 @@ COMMANDS = {
     "battery": cmd_battery,
     "apps": cmd_apps,
     "bundle": cmd_bundle,
+    "backup": cmd_backup,
     "adb": cmd_adb,
     "web": cmd_web,
     "undo": cmd_undo,

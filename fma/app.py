@@ -5,7 +5,7 @@ from __future__ import annotations
 import curses
 import time
 
-from . import adb, battery, catalog, device, discover, journal, plan, profiles
+from . import adb, backup, battery, catalog, device, discover, journal, plan, profiles
 from .tui import (Back, Quit, Row, Screen, attr, pick, C_BAD, C_CAUTION, C_DIM,
                   C_OK, C_RISKY, C_SAFE, C_TITLE, _init_colors)
 
@@ -214,6 +214,14 @@ def main_menu(sc: Screen, prof: device.Profile, ctx: profiles.Context) -> None:
             rows.append(Row(text=p["name"], note=p["summary"],
                             key=("profile", p["id"])))
         rows.append(Row(text="", selectable=False))
+        last = backup.age_text(backup.last_backup(
+            backup.device_dir(prof.name, prof.serial)))
+        rows.append(Row(
+            text="Save your things first" + (f"   (last backed up {last})" if last else ""),
+            note="Copies photos, videos, contacts, messages and files to this "
+                 "computer. Nothing on the phone is changed, and a second run "
+                 "only copies what is new.",
+            key=("backup", None)))
         rows.append(Row(text="What is draining the battery",
                         note="Reads this phone's own accounting and ranks "
                              "what is actually costing you power.",
@@ -246,6 +254,8 @@ def main_menu(sc: Screen, prof: device.Profile, ctx: profiles.Context) -> None:
 
         if what == "profile":
             run_profile(sc, prof, ctx, value)
+        elif what == "backup":
+            show_backup(sc, prof)
         elif what == "battery":
             show_battery(sc, prof, ctx)
         elif what == "apps":
@@ -431,6 +441,72 @@ def apply_actions(sc: Screen, prof: device.Profile, actions: list[plan.Action],
         lines += ["", "Restart the phone when convenient. Some OEM builds keep "
                   "a disabled service running until the next boot."]
     sc.message("Done", lines, bad=bool(bad and not good))
+
+
+# --- backup -----------------------------------------------------------------
+
+
+def show_backup(sc: Screen, prof: device.Profile) -> None:
+    d = adb.Device(prof.serial)
+    dest = backup.device_dir(prof.name, prof.serial)
+    try:
+        sv = sc.busy("Looking at what is on the phone (nothing is changed)…",
+                     lambda: backup.survey(d, dest))
+    except adb.AdbError as e:
+        sc.message("Could not look at the phone", [str(e)], bad=True)
+        return
+
+    rows = [Row(text=f"{i.label:44} {i.summary}", selectable=False,
+                risk="caution" if i.status == "unreadable" else "")
+            for i in sv.items]
+    rows.append(Row(text="", selectable=False))
+    for what, why in backup.NOT_SAVED:
+        rows.append(Row(text=f"Not saved: {what}", note=why, risk="caution",
+                        selectable=False))
+    rows.append(Row(text="", selectable=False))
+    go = (f"Back up now — {backup.count_files(sv.new_files)}, "
+          f"{backup.human(sv.new_bytes)} to copy" if sv.new_files else
+          "Back up now — files are all saved; refresh contacts and messages")
+    rows.append(Row(text=go, note=f"Saved in {dest}", key="go"))
+    try:
+        if pick(sc, "Save your things first",
+                "What is on the phone, and what a backup can and cannot keep",
+                rows, [("↑↓", "move"), ("Enter", "back up"), ("Esc", "back")]) != "go":
+            return
+    except Back:
+        return
+
+    state = {"line": "Starting…"}
+    log: list[tuple[str, bool]] = []
+
+    def progress(done: int, total: int, got: int, want: int) -> None:
+        pct = (got * 100 // want) if want else 100
+        state["line"] = (f"{pct}%  {done:,} of {total:,} files  "
+                         f"{backup.human(got)} of {backup.human(want)}")
+
+    info = {"name": prof.name, "model": prof.model, "android": prof.android,
+            "serial": prof.serial}
+    try:
+        res = sc.busy(
+            "Copying. Keep the phone plugged in…",
+            lambda: backup.run(d, info, sv, progress=progress,
+                               say=lambda text, ok=True: log.append((text, ok))))
+    except backup.BackupError as e:
+        sc.message("Backup did not start", [str(e)], bad=True)
+        return
+    except adb.DeviceGone as e:
+        sc.message("The phone disconnected", [
+            str(e), "", "Whatever had been copied is kept. Plug the phone back "
+            "in and run the backup again; it carries on from where it stopped."],
+            bad=True)
+        return
+
+    lines = [("" if ok else "! ") + text for text, ok in log]
+    lines += ["", f"Not saved — {backup.NOT_SAVED[0][0]}: {backup.NOT_SAVED[0][1]}",
+              "", f"Everything is in {res.dest}",
+              "Open 'READ ME FIRST.txt' there for how to restore."]
+    sc.message("Backup complete and checked" if res.ok else
+               "Backup finished with problems", lines, bad=not res.ok)
 
 
 # --- battery ----------------------------------------------------------------

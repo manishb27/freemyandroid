@@ -253,6 +253,12 @@ for kind, target, value in cases:
 print(f"   {len(cases)} action kinds")
 EOF
 
+step "backup pipeline (fake phone, no hardware needed)"
+if $PY tools/test_backup.py; then ok "survey, copy, verify, incremental, refused providers"; else bad "backup pipeline"; fi
+
+step "web interface, loaded the way a browser loads it"
+if $PY tools/test_web.py; then ok "assets load as referenced, token guards the rest, one-click backup"; else bad "web interface"; fi
+
 step "entry point"
 if ./freemyandroid --version >/dev/null 2>&1; then ok "$(./freemyandroid --version | head -1)"; else bad "--version failed"; fi
 if ./freemyandroid --help >/dev/null 2>&1; then ok "--help"; else bad "--help failed"; fi

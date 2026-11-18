@@ -132,3 +132,13 @@ button.ghost { background: transparent; }
 
 details summary { cursor: pointer; color: var(--muted); margin-top: .8rem; }
 footer { padding: 1.5rem 0; }
+
+/* backup progress */
+.bar { height: 10px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; margin-top: .9rem; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--safe); transition: width .35s ease; }
+.bar.looking > i { width: 30%; animation: slide 1.1s ease-in-out infinite alternate; }
+@keyframes slide { from { margin-left: 0; } to { margin-left: 70%; } }
+.row .state { flex: 0 0 auto; font-size: .82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.row.warn .state { color: var(--caution); }
+.callout { border-left: 3px solid var(--caution); background: var(--panel-2); padding: .7rem .9rem; border-radius: 0 7px 7px 0; margin: .9rem 0 .2rem; font-size: .92rem; }
+.callout:empty { display: none; }

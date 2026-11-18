@@ -108,6 +108,16 @@ SERVER.md and CLAUDE.md's "deliberately missing" section. Two readings:
 
 Do not start either without settling which one it is.
 
+## Backup: run it on real phones, then build restore
+
+`fma/backup.py` is tested end to end against a fake adb and has not yet met
+real hardware. First job: run it on a Samsung, a Xiaomi and a ColorOS phone
+and record which of them let ADB read contacts and messages.
+
+Then restore. Files are `adb push`. Contacts can be pushed as a `.vcf` and
+opened on the phone. Text messages need an app on the device to write them
+back, which is the hard part and may not be worth owning.
+
 ## Smaller things
 
 - `ro.build.characteristics` is not reliable for TV detection on every box; the

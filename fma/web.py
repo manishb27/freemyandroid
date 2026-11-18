@@ -43,9 +43,13 @@ from dataclasses import dataclass, field, asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-from . import adb, battery, catalog, device, discover, journal, plan, profiles
+from . import adb, backup, battery, catalog, device, discover, journal, plan, profiles
 
 WEB_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
+
+# The only files served without the token. An allowlist rather than "anything
+# under web/", so adding a file to that folder never quietly publishes it.
+STATIC_FILES = frozenset({"style.css", "app.js"})
 
 # How the phone is being used. This is the one question that changes what a
 # sensible default looks like, and it is not something we can detect.
@@ -90,6 +94,9 @@ class Session:
     busy: str = ""
     error: str = ""
     finished: str = ""
+    # Backup: progress while it runs, and the summary once it has.
+    backup_progress: dict | None = None
+    backup_result: dict | None = None
 
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
 
@@ -198,6 +205,16 @@ class Api:
                      "summary": r.summary, "count": len(r.reversible)}
                     for r in reversed(journal.load(s.serial))
                 ]
+            if s.prof:
+                dest = backup.device_dir(s.prof.name, s.serial)
+                last = backup.last_backup(dest)
+                out["backup"] = {
+                    "dest": dest,
+                    "last": backup.age_text(last),
+                    "last_complete": bool(last and last.get("complete")),
+                    "progress": s.backup_progress,
+                    "result": s.backup_result,
+                }
             if s.plan:
                 pre = MODES[s.mode]["preselect"]
                 out["plan"] = {
@@ -274,6 +291,8 @@ class Api:
                 self.s.prof = prof
                 self.s.ctx = ctx
                 self.s.plan = None
+                self.s.backup_progress = None
+                self.s.backup_result = None
             for w in prof.warnings:
                 self.s.say(w, ok=False)
             self.s.say("Ready.", done=True)
@@ -424,6 +443,76 @@ class Api:
                 self.s.ctx = profiles.build_context(self.s.prof)
         return {"queued": self.jobs.submit("Installing apps", work)}
 
+    def backup(self) -> dict:
+        """One click: look at the phone, copy what is new, check it, report.
+
+        Deliberately no options. The person pressing this should not have to
+        know what a DCIM folder is, and a second press only copies what has
+        appeared since the first.
+        """
+        if not self.s.prof:
+            return {"error": "pick a phone first"}
+
+        def work() -> None:
+            s = self.s
+            s.reset_steps()
+            with s.lock:
+                s.backup_progress = {"phase": "looking", "done": 0, "total": 0,
+                                     "bytes": 0, "total_bytes": 0}
+                s.backup_result = None
+            d = adb.Device(s.serial)
+            dest = backup.device_dir(s.prof.name, s.serial)
+            s.say("Looking at what is on the phone. Nothing on it will be changed.")
+            sv = backup.survey(d, dest, say=lambda text: s.say(text))
+            if sv.new_files:
+                s.say(f"{backup.count_files(sv.new_files)} to copy, {backup.human(sv.new_bytes)}.")
+            else:
+                s.say("Every file is already saved on this computer. Refreshing "
+                      "contacts and messages.")
+
+            def progress(done: int, total: int, got: int, want: int) -> None:
+                with s.lock:
+                    s.backup_progress = {"phase": "copying", "done": done,
+                                         "total": total, "bytes": got,
+                                         "total_bytes": want}
+
+            try:
+                res = backup.run(
+                    d, {"name": s.prof.name, "model": s.prof.model,
+                        "android": s.prof.android, "serial": s.serial},
+                    sv, say=lambda text, ok=True: s.say(text, ok=ok),
+                    progress=progress)
+            except backup.BackupError as e:
+                s.say(str(e), ok=False)
+                with s.lock:
+                    s.backup_progress = None
+                return
+
+            with s.lock:
+                s.backup_progress = None
+                s.backup_result = {
+                    "ok": res.ok,
+                    "dest": res.dest,
+                    "copied_files": res.copied_files,
+                    "copied": backup.human(res.copied_bytes),
+                    "seconds": round(res.seconds),
+                    "items": [
+                        {"label": i.label, "status": i.status,
+                         "summary": (f"{backup.count_files(i.files)}, {backup.human(i.bytes)}"
+                                     if i.kind == "files" and i.files else
+                                     f"{i.count:,}" if i.count else
+                                     "could not be read on this phone"
+                                     if i.status == "unreadable" else "none found"),
+                         "detail": i.detail, "failed": len(i.failed)}
+                        for i in res.items
+                    ],
+                    "not_saved": [{"what": w, "why": y} for w, y in backup.NOT_SAVED],
+                }
+            s.say(("Backup complete and checked. " if res.ok else
+                   "Backup finished, but some files could not be saved. ")
+                  + f"It is in {res.dest}", ok=res.ok, done=True)
+        return {"queued": self.jobs.submit("Backing up", work)}
+
     def battery(self) -> dict:
         if not self.s.ctx:
             return {"error": "pick a phone first"}
@@ -508,6 +597,23 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         u = urlparse(self.path)
         qs = parse_qs(u.query)
+
+        # The stylesheet and script are served without the token. They are
+        # the same two files anyone can read in the public repository, they
+        # hold no state, and a browser requests them exactly as index.html
+        # names them — with no query string. Demanding the token here made
+        # the page load unstyled and inert in every real browser from 1.0.0
+        # to 1.0.2; it only ever "worked" under curl with the token appended
+        # by hand. The token still guards the page itself and every API call,
+        # which is where the ability to change a phone lives.
+        if u.path.startswith("/static/"):
+            name = os.path.basename(u.path)
+            if name in STATIC_FILES:
+                self._serve_static(name)
+            else:
+                self._text("404", 404)
+            return
+
         if not self._authed(qs):
             self._text("403 — this page needs the link printed in the "
                        "terminal, token included.", 403)
@@ -515,9 +621,6 @@ class Handler(BaseHTTPRequestHandler):
 
         if u.path in ("/", "/index.html"):
             self._serve_static("index.html")
-            return
-        if u.path.startswith("/static/"):
-            self._serve_static(os.path.basename(u.path))
             return
         if u.path == "/api/state":
             self._json(self.api.state())
@@ -552,6 +655,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/install": lambda: self.api.install(
                 [str(x) for x in body.get("apps", [])]),
             "/api/battery": self.api.battery,
+            "/api/backup": self.api.backup,
         }
         fn = routes.get(u.path)
         if not fn:

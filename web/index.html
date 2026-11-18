@@ -39,9 +39,34 @@
   <div id="modes" class="cards"></div>
 </section>
 
-<!-- 3. what to do -->
+<!-- 3. save your things -->
+<section id="s-backup" class="hidden">
+  <h2><span class="n">3</span> Save your things first</h2>
+  <p class="muted">
+    Copies your photos, videos, contacts, messages and files to this computer.
+    Nothing on the phone is changed. The first time can take a while; after
+    that it only copies what is new.
+  </p>
+  <div class="actions">
+    <button id="backup" class="primary">Back up everything</button>
+    <span id="backup-last" class="muted small"></span>
+  </div>
+  <div id="backup-bar" class="bar hidden"><i></i></div>
+  <p id="backup-status" class="muted small"></p>
+  <div id="backup-result" class="hidden">
+    <div id="backup-items" class="rows"></div>
+    <p id="backup-warn" class="callout"></p>
+    <details>
+      <summary>Other things a backup cannot save, and what to do about them</summary>
+      <div id="backup-not" class="rows"></div>
+    </details>
+    <p id="backup-where" class="muted small"></p>
+  </div>
+</section>
+
+<!-- 4. what to do -->
 <section id="s-what" class="hidden">
-  <h2><span class="n">3</span> What would you like to do?</h2>
+  <h2><span class="n">4</span> What would you like to do?</h2>
   <div id="profiles" class="cards"></div>
   <div class="actions">
     <button id="battery" class="ghost">What is draining the battery</button>
@@ -50,9 +75,9 @@
   </div>
 </section>
 
-<!-- 4. review -->
+<!-- 5. review -->
 <section id="s-plan" class="hidden">
-  <h2><span class="n">4</span> Review before anything changes</h2>
+  <h2><span class="n">5</span> Review before anything changes</h2>
   <p id="plansummary" class="muted"></p>
   <div class="actions tight">
     <button id="sel-all" class="ghost small">All</button>

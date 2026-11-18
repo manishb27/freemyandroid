@@ -4,7 +4,7 @@
 
 <br>
 
-[![version](https://img.shields.io/badge/version-1.0.2-6fb3ff)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.1.0-6fb3ff)](CHANGELOG.md)
 [![check](https://github.com/manishb27/freemyandroid/actions/workflows/check.yml/badge.svg)](https://github.com/manishb27/freemyandroid/actions/workflows/check.yml)
 [![python](https://img.shields.io/badge/python-3.10%2B-5fc98a)](https://www.python.org/downloads/)
 [![dependencies](https://img.shields.io/badge/dependencies-none-5fc98a)](#install)
@@ -88,6 +88,27 @@ ship `adb` with mDNS compiled out and that command then silently finds
 nothing. It speaks DNS-SD directly, and falls back to a unicast sweep of your
 subnet when the access point drops multicast between wireless clients — which
 a lot of home routers do.
+
+## Save your things first
+
+Before anything is switched off, back the phone up. It is one button:
+
+```sh
+./freemyandroid web       # step 3: "Back up everything"
+./freemyandroid backup    # or from the command line
+```
+
+It copies photos, videos, downloads, documents, WhatsApp media, contacts,
+text messages and call history to `~/FreeMyAndroid-Backups/` as ordinary
+files — photos are photos, contacts are a standard `.vcf` — and it changes
+nothing on the phone. A second run only copies what is new, and every file
+is checked against the size the phone reported.
+
+It also tells you what it **cannot** save. Authenticator codes, email, app
+data and Wi-Fi passwords are out of reach of any backup tool on an unrooted
+phone, and it says so on screen rather than leaving a quiet gap.
+
+[The full process, including what to do before a factory reset →](docs/BACKUP.md)
 
 ## The web interface
 
@@ -321,6 +342,7 @@ where curses is awkward. **None of them change a phone.**
 ./freemyandroid scan                    # find phones on this network
 ./freemyandroid info                    # what kind of phone it is
 ./freemyandroid plan fast extreme       # print the plan, change nothing
+./freemyandroid backup                  # save photos, contacts, messages
 ./freemyandroid battery                 # what is costing power
 ./freemyandroid apps                    # the catalogue
 ./freemyandroid bundle ~/apks           # pre-download APKs
@@ -347,7 +369,7 @@ package name and no note are the ones that go wrong.
 
 ## Status
 
-**1.0.2.** The engine, the guards, the journal, discovery, the battery report,
+**1.1.0.** The engine, the guards, the journal, discovery, the battery report,
 the catalogue, default-app switching and both interfaces work and have been
 exercised end to end against real hardware.
 

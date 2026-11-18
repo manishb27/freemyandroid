@@ -4,6 +4,72 @@ Notable changes. Versions follow [semver](https://semver.org): the package
 lists and the JSON data formats are part of the public surface, so a breaking
 change to those is a major bump.
 
+## 1.1.0 — 2026-11-18
+
+### Save your things first
+
+A backup step, in all three front ends, that comes before anything is
+switched off. Nothing in this tool deletes data — a disabled app keeps
+everything it stored — but the phone in someone's hand is usually the only
+copy of their photographs, and that deserves better than "it should be fine".
+
+- **One click in the web interface** (step 3, "Back up everything"), a menu
+  item in the terminal one, and `./freemyandroid backup` on the command line.
+  `backup --check` only looks and reports what would be copied.
+- Saves photos, videos, downloads, documents, music, recordings, WhatsApp
+  media and its chat-backup file, the same folders on an SD card, contacts as
+  a standard `.vcf`, text messages, call history, and the list of installed
+  apps. Into `~/FreeMyAndroid-Backups/`, as ordinary files that need no
+  program to open.
+- **Incremental**: a second run copies only what is new.
+- **Verified**: a file counts as saved only when it is on this computer at
+  the size the phone reported. Anything else is listed by name.
+- **Says what it cannot save.** Authenticator codes, email, app data and
+  Wi-Fi passwords are out of reach without root, and `adb backup` stopped
+  working for nearly every app in Android 12. The summary says so, with the
+  authenticator warning shown outright rather than folded away, because that
+  is the one that locks people out of accounts.
+- **Degrades out loud.** A phone that refuses the contacts or messages
+  provider is reported as "could not be read on this phone", with what to do
+  instead. It never writes an empty export and calls it a success.
+- `docs/BACKUP.md` sets out the order to do things in, including the steps
+  that must happen *before* a factory reset: moving authenticator codes, and
+  removing the Google account so Factory Reset Protection does not lock the
+  next owner out.
+
+**Not yet run against a real phone.** No device was attached when this was
+written. The pipeline is tested end to end on every commit against
+`tools/fake_adb.py`, which runs the real shell commands against a folder laid
+out like a phone. The file half should hold; reading contacts and messages
+depends on the manufacturer.
+
+### Fixed: the web interface loaded unstyled and inert in real browsers
+
+Since 1.0.0. The server wanted the token on every request, and `index.html`
+asks for `/static/style.css` and `/static/app.js` without one, so a browser
+got a 403 for both and showed every section at once with nothing working.
+
+It had been "verified" with `curl`, with the token appended to the static
+URLs by hand, which tested an assumption instead of the page. It was found
+the first time the page was opened in an actual browser and looked at.
+
+The two static files are now served without the token, from an allowlist:
+they are the same files anyone can read in the repository and hold no state.
+The token still guards the page and every API call, which is where the
+ability to change a phone lives.
+
+`tools/test_web.py` now fetches the page, reads which assets *it* names, and
+requests each exactly as written. Reintroducing the bug makes it fail.
+
+### Also
+
+- `tools/fake_adb.py`: a stand-in for adb, so pipelines can be tested with no
+  hardware.
+- The web test asserts that every element id the script reaches for exists in
+  the page.
+- Televisions are a supported device class, with their own package list and
+  guards (38 entries; committed earlier, released here).
+
 ## 1.0.2 — 2026-11-08
 
 Fixes a file that would not parse at all on Python 3.10, which is the floor
