@@ -352,7 +352,7 @@ exactly when Undo matters most.
 ./freemyandroid plan fast standard         # read-only, safe on any phone
 ```
 
-`tools/check.sh` is exactly what CI runs — the workflow just calls it. Do not
+`tools/check.sh` is the whole check (there is no GitHub Actions workflow: the owner turned Actions off). Do not
 reproduce a subset of it by hand: version 1.0.0 shipped with red CI because
 that is precisely what happened, and the check that got skipped was the one
 that found a real bug.

@@ -5,7 +5,6 @@
 <br>
 
 [![version](https://img.shields.io/badge/version-1.2.0-6fb3ff)](CHANGELOG.md)
-[![check](https://github.com/manishb27/freemyandroid/actions/workflows/check.yml/badge.svg)](https://github.com/manishb27/freemyandroid/actions/workflows/check.yml)
 [![python](https://img.shields.io/badge/python-3.10%2B-5fc98a)](https://www.python.org/downloads/)
 [![dependencies](https://img.shields.io/badge/dependencies-none-5fc98a)](#install)
 [![licence](https://img.shields.io/badge/licence-MIT-9aa2ab)](LICENSE)
