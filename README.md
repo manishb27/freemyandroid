@@ -14,7 +14,7 @@ Pick how far to go. Read exactly what will change, then apply it.
 
 No root. Nothing uninstalled. Nothing installed on the phone unless you ask.
 
-[Install](#install) · [Agents](#using-this-with-claude-or-another-agent) · [Web UI](#the-web-interface) · [Safety](#safety) · [Tested devices](docs/tested-devices/) · [Changelog](CHANGELOG.md) · [adb setup](docs/ADB.md) · [Phone as a server](docs/SERVER.md) · [Roadmap](docs/ROADMAP.md)
+[Install](#install) · [On the TV: Free My Android TV](https://github.com/manishb27/freemyandroid-tv) · [Agents](#using-this-with-claude-or-another-agent) · [Web UI](#the-web-interface) · [Safety](#safety) · [Tested devices](docs/tested-devices/) · [Changelog](CHANGELOG.md) · [adb setup](docs/ADB.md) · [Phone as a server](docs/SERVER.md) · [Roadmap](docs/ROADMAP.md)
 
 **Tested on a Samsung Galaxy M21** (Android 12): 71 packages disabled, 0
 failures, ~110 MB of memory freed, nothing broken.
@@ -435,7 +435,7 @@ file are the two things worth attaching.
 ## On the television
 
 A television can be cleaned up from here like a phone: it gets a list of its own (38 apps). There is also
-**[Free My Android TV](https://github.com/manishb27/-freemyandroid-tv)**, a separate app that runs on the TV itself:
+**[Free My Android TV](https://github.com/manishb27/freemyandroid-tv)**, a separate app that runs on the TV itself:
 five small apps (a clock, a timer, a scoreboard, a calendar and a world clock), three looks to choose from, and a
 page that shows which apps on that list are switched off on the set. It is being built, and lives in its own
 repository. The website, [freemyandroid.com](https://freemyandroid.com), has both.
