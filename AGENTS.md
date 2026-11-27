@@ -26,10 +26,10 @@ If that is how you got here, do this, saying what each step is before you run it
 3. **Open the web app**: `./freemyandroid web`. It opens in their browser. Help them attach the device
    (section 2), then **stop**: they read the plan and choose in the browser. Back up first (section 3½).
 4. **A TV**: the same web app cleans it up (a TV gets its own list of 38). Then offer **Free My Android TV**, an app
-   that runs on the television itself (github.com/manishb27/-freemyandroid-tv). Only if they say yes:
+   that runs on the television itself (github.com/manishb27/freemyandroid-tv). Only if they say yes:
    ```sh
    adb connect <the TV's IP>:5555          # they press Allow on the TV
-   curl -LO https://github.com/manishb27/-freemyandroid-tv/releases/latest/download/FreeMyAndroid-TV.apk
+   curl -LO https://github.com/manishb27/freemyandroid-tv/releases/latest/download/FreeMyAndroid-TV.apk
    adb install -r FreeMyAndroid-TV.apk
    adb shell am start -n com.freemyandroid.tv/.MainActivity
    ```
