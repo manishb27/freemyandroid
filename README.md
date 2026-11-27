@@ -433,6 +433,14 @@ genuinely useful — especially if a guard fired when it should not have, or
 did not when it should. `./freemyandroid --version` and the relevant journal
 file are the two things worth attaching.
 
+## On the television
+
+A television can be cleaned up from here like a phone: it gets a list of its own (38 apps). There is also
+**[Free My Android TV](https://github.com/manishb27/-freemyandroid-tv)**, a separate app that runs on the TV itself:
+five small apps (a clock, a timer, a scoreboard, a calendar and a world clock), three looks to choose from, and a
+page that shows which apps on that list are switched off on the set. It is being built, and lives in its own
+repository. The website, [freemyandroid.com](https://freemyandroid.com), has both.
+
 ## Credit
 
 [Universal Android Debloater Next Generation](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation)
