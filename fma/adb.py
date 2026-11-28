@@ -207,7 +207,9 @@ class Device:
             flags += " -d"
         if system_only:
             flags += " -s"
-        r = self.shell(f"pm list packages{flags}", timeout=60)
+        # --user 0: the profile this tool changes (pm disable-user --user 0). Without it Android lists every profile, and
+        # a phone with a second one the shell may not read (Samsung's Secure Folder is user 150) refuses the whole list.
+        r = self.shell(f"pm list packages --user 0{flags}", timeout=60)
         if not r.ok and not r.out:
             raise AdbError(f"pm list packages failed: {r.text}")
         return {

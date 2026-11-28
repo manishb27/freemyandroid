@@ -226,7 +226,7 @@ def launchable_packages(d: adb.Device) -> set[str]:
         return found
     # Android 8/9 have no `query-activities`. Fall back to the slower resolve.
     r = d.shell(
-        "for p in $(pm list packages -e | sed 's/package://'); do "
+        "for p in $(pm list packages --user 0 -e | sed 's/package://'); do "
         "pm resolve-activity --brief -a android.intent.action.MAIN "
         "-c android.intent.category.LAUNCHER $p 2>/dev/null | tail -1; done",
         timeout=180)
@@ -250,7 +250,7 @@ def installed_launchers(d: adb.Device) -> list[str]:
             found.add(m.group(1))
     if not found:
         # Older builds: fall back to resolving the intent one activity at a time.
-        r = d.shell("pm list packages -e | sed 's/package://'", timeout=60)
+        r = d.shell("pm list packages --user 0 -e | sed 's/package://'", timeout=60)
         for pkg in r.out.split():
             if "launcher" in pkg.lower() or "home" in pkg.lower():
                 found.add(pkg)

@@ -101,7 +101,7 @@ def uid_map(d: adb.Device) -> dict[str, list[str]]:
     """uid -> packages. Several packages can share a uid, and batterystats
     reports per uid, so a shared uid means we cannot attribute the drain to
     one of them; we list them all and say so."""
-    r = d.shell("pm list packages -U", timeout=60)
+    r = d.shell("pm list packages --user 0 -U", timeout=60)
     out: dict[str, list[str]] = {}
     for line in r.out.splitlines():
         m = re.match(r"package:(\S+)\s+uid:(\d+)", line.strip())

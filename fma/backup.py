@@ -737,7 +737,7 @@ def survey(d: adb.Device, dest: str,
             item.count = len(rows)
         sv.items.append(item)
 
-    apps = d.shell("pm list packages -3", timeout=60)
+    apps = d.shell("pm list packages --user 0 -3", timeout=60)
     n = sum(1 for line in apps.out.splitlines() if line.startswith("package:"))
     sv.items.append(Item(key="apps", label="List of apps you installed",
                          kind="apps", count=n))
@@ -1062,7 +1062,7 @@ def run(d: adb.Device, device_info: dict, sv: Survey, *,
     # --- apps
     item = sv.item("apps")
     if item is not None and item.key in want:
-        r = d.shell("pm list packages -3", timeout=60)
+        r = d.shell("pm list packages --user 0 -3", timeout=60)
         pkgs = sorted(line[len("package:"):].strip() for line in r.out.splitlines()
                       if line.startswith("package:"))
         item.count = len(pkgs)
