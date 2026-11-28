@@ -46,7 +46,7 @@
     {"id": "com.samsung.android.dynamiclock", "label": "Dynamic Lock screen", "risk": "safe", "tags": ["ads", "battery", "bloat"], "note": "Downloads rotating lock-screen wallpapers over the network, some of them promotional. A steady background-job source."},
     {"id": "com.sec.android.easyMover", "label": "Smart Switch", "risk": "safe", "tags": ["bloat"], "note": "Only used when moving to a new phone."},
     {"id": "com.sec.android.easyMover.Agent", "label": "Smart Switch Agent", "risk": "safe", "tags": ["bloat"]},
-    {"id": "com.sec.android.diagmonagent", "label": "Diagnostic Agent (DiagMon)", "risk": "safe", "tags": ["telemetry", "privacy"], "note": "Samsung's diagnostic log uploader."},
+    {"id": "com.sec.android.diagmonagent", "label": "Diagnostic Agent (DiagMon)", "risk": "risky", "tags": ["telemetry", "privacy"], "note": "Samsung's diagnostic log uploader. Do not switch it off: on One UI 5 (Android 13) the system keeps starting it anyway, and switched off it crashes and restarts thousands of times an hour, which made a Galaxy A32 5G crawl. Measured 28 November 2026."},
     {"id": "com.samsung.android.mdx", "label": "Link to Windows service", "risk": "safe", "tags": ["bloat"]},
     {"id": "com.samsung.android.mdx.quickboard", "label": "Link to Windows board", "risk": "safe", "tags": ["bloat"]},
     {"id": "com.samsung.discover", "label": "Samsung Discover", "risk": "safe", "tags": ["ads", "bloat"], "note": "A promotional feed for Samsung products."},
